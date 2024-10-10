@@ -1,17 +1,10 @@
-#ifndef UTILS_H
-#define UTILS_H
+#ifndef HZ_UTILS_H
+#define HZ_UTILS_H
 
-#include "types.h"
-
-#include <memory.h>
-#include <string.h>
+#include "crt.h"
+#include "hz_types.h"
 
 #define ARRAY_COUNT(array) (sizeof(array) / sizeof((array)[0]))
-
-#define KILOBYTES(value) ((value) * 1024LL) 
-#define MEGABYTES(value) (KILOBYTES(value) * 1024LL) 
-#define GIGABYTES(value) (MEGABYTES(value) * 1024LL) 
-#define TERABYTES(value) (GIGABYTES(value) * 1024LL) 
 
 #if SLOW
 #define ASSERT(Expression) if(!(Expression)) {*(int *)0 = 0;}
@@ -23,24 +16,24 @@ inline u32 SafeTruncateUInt64(u64 value);
 #define INVALID_CODE_PATH ASSERT(!"Invalid code path!")
 #define INVALID_DEFAULT_CASE default:{ASSERT(!"Invalid code path!");} 
 
-inline uint32_t SafeTruncateUInt64(uint64_t value)
+inline u32 SafeTruncateUInt64(u64 value)
 {
   // TODO: Define maximum value
   ASSERT(value < 0xFFFFFFFF);
-  return (uint32_t)value;
+  return (u32)value;
 }
 
 //NOTE: non-pointer type only
 #define DEFINE_SWAP(T)  void Swap(T* l, T* r){ T temp = *l; *l = *r; *r = temp; }
 
-DEFINE_SWAP(float)
+DEFINE_SWAP(f32)
 DEFINE_SWAP(i32)
 
-float Min(float* value, int count)
+f32 Min(f32* value, int count)
 {
   ASSERT(count > 0);
 
-  float result = value[0];
+  f32 result = value[0];
   for (int i = 0; i < count; ++i)
   {
     if (result > value[i])
@@ -51,11 +44,11 @@ float Min(float* value, int count)
   return result;
 }
 
-float Max(float* value, int count)
+f32 Max(f32* value, int count)
 {
   ASSERT(count > 0);
 
-  float result = value[0];
+  f32 result = value[0];
   for (int i = 0; i < count; ++i)
   {
     if (result < value[i])
