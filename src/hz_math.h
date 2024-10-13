@@ -108,63 +108,45 @@ struct Box
 // Implementation
 
 //TODO: Use math.h for now. Switch to platform efficient code in the future!
-#include "crt.h"
+#include <math.h>
 
-inline void RandomSeed(u32 seed)
-{
-  srand(seed);
-}
-inline f32 Random01()
-{
-  return rand() / (f32)RAND_MAX; /* [0, 1.0] */
-}
-inline f32 Random(f32 min, f32 max)
-{
-  f32 delta = max - min;
-  return min + Random01() * delta;
-}
-inline i32 Random(i32 minInclusive, i32 maxExclusive)
-{
-  i32 delta = maxExclusive - minInclusive;
-  return minInclusive + rand() % delta;
-}
 inline f32 Floor(f32 value)
 {
-  return crt::floorf(value);
+  return floorf(value);
 }
 inline f32 Ceil(f32 value)
 {
-  return crt::ceilf(value);
+  return ceilf(value);
 }
 
 inline f32 Round(f32 value)
 {
-  return crt::roundf(value);
+  return roundf(value);
 }
 
 inline f32 Sin(f32 value)
 {
-  return crt::sinf(value);
+  return sinf(value);
 }
 inline f32 Cos(f32 value)
 {
-  return crt::cosf(value);
+  return cosf(value);
 }
 inline f32 ACos(f32 value)
 {
-  return crt::acosf(value);
+  return acosf(value);
 }
 inline f32 Tan(f32 value)
 {
-  return crt::tanf(value);
+  return tanf(value);
 }
 inline f32 Atan2(f32 y, f32 x)
 {
-  return crt::atan2f(y, x);
+  return atan2f(y, x);
 }
 inline f32 Atan(f32 value)
 {
-  return crt::atanf(value);
+  return atanf(value);
 }
 
 inline f32 Q_rsqrt(f32 value)
@@ -192,7 +174,7 @@ inline f32 Sqr(f32 x)
 
 inline f32 Sqrt(f32 x)
 {
-  return crt::sqrtf(x);
+  return sqrtf(x);
 }
 
 inline f32 Abs(f32 value)

@@ -35,7 +35,7 @@ static void FreeSize_(MemoryArena* arena, void* location, size_t sizeInByte)
   ASSERT((size_t)((u8*)location - (u8*)arena->base) <= arena->used);
 
   size_t copySize = ((u8*)arena->base + arena->used) - ((u8*)location + sizeInByte);
-  memcpy(location, (u8*)location + sizeInByte + 1, copySize);
+  Memcpy(location, (u8*)location + sizeInByte + 1, copySize);
   arena->used -= sizeInByte;
 }
 

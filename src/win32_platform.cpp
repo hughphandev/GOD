@@ -3,6 +3,7 @@
 #include <d3d11.h>
 #include <d3dcompiler.h>
 
+#include <sys/stat.h> 
 #include "hz_math.h"
 #include "hz_utils.h"
 #include "hz_render.h"
@@ -17,6 +18,53 @@ struct Win32D3D11
     ID3D11RenderTargetView* renderTargetView;
 };
 
+typedef decltype(Init) GameInit;
+typedef decltype(Update) GameUpdate;
+
+struct Win32GameCode
+{
+    HMODULE gameDll;
+    GameInit* InitGame;
+    GameUpdate* UpdateGame;
+};
+
+Win32GameCode Win32LoadGameCode(char* dll)
+{
+    Win32GameCode result = {};
+    result.gameDll = LoadLibraryA(dll);
+    result.InitGame = (GameInit*)GetProcAddress(result.gameDll, "Init");
+    result.UpdateGame = (GameUpdate*)GetProcAddress(result.gameDll, "Update");
+    return result;
+}
+
+void Win32ReloadGameCode(Win32GameCode* gameCode)
+{
+    static long long lastEditTimeTimeStampDll;
+
+    struct stat st;
+    if (stat("game_temp.dll", &st) == 0)
+    {
+        long long currentEditTimeStampDll = st.st_mtime;
+        if (currentEditTimeStampDll > lastEditTimeTimeStampDll)
+        {
+            if (gameCode->gameDll)
+            {
+                FreeLibrary(gameCode->gameDll);
+                gameCode->gameDll = NULL;
+            }
+
+            while (!CopyFile("game_temp.dll", "game.dll", FALSE))
+            {
+                Sleep(10);
+            }
+            DeleteFile("game_temp.dll");
+
+            *gameCode = Win32LoadGameCode("game.dll");
+
+            lastEditTimeTimeStampDll = currentEditTimeStampDll;
+        }
+    }
+}
 
 static void Win32RenderOutput(RenderGroup* renderGroup, Win32D3D11 d3d11)
 {
@@ -32,7 +80,103 @@ static void Win32RenderOutput(RenderGroup* renderGroup, Win32D3D11 d3d11)
 
                 d3d11.deviceContext->ClearRenderTargetView(d3d11.renderTargetView, entry->color.e);
                 d3d11.deviceContext->OMSetRenderTargets(1, &d3d11.renderTargetView, 0);
-                d3d11.swapChain->Present(0, 0);
+
+                base = (u8*)base + sizeof(*entry);
+            } break;
+
+            case RC_RenderCommandModel:
+            {
+                RenderCommandModel* entry = (RenderCommandModel*)base;
+
+                static bool first = false;
+                if (!first)
+                {
+                    first = true;
+                    D3D11_BUFFER_DESC vertexBufferDesc = {};
+                    vertexBufferDesc.ByteWidth = sizeof(*entry->model.vertices) * entry->model.vertexCount;
+                    vertexBufferDesc.Usage = D3D11_USAGE_DEFAULT;
+                    vertexBufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+                    vertexBufferDesc.CPUAccessFlags = 0;
+                    vertexBufferDesc.MiscFlags = 0;
+                    vertexBufferDesc.StructureByteStride = sizeof(Vert);
+                    ID3D11Buffer* vertexBuffer;
+                    D3D11_SUBRESOURCE_DATA vertexResDesc = {};
+                    vertexResDesc.pSysMem = entry->model.vertices;
+                    d3d11.device->CreateBuffer(&vertexBufferDesc, &vertexResDesc, &vertexBuffer);
+
+
+                    D3D11_BUFFER_DESC indexBufferDesc = {};
+                    indexBufferDesc.ByteWidth = sizeof(*entry->model.indices) * entry->model.indexCount;
+                    indexBufferDesc.Usage = D3D11_USAGE_DEFAULT;
+                    indexBufferDesc.BindFlags = D3D11_BIND_INDEX_BUFFER;
+                    indexBufferDesc.CPUAccessFlags = 0;
+                    indexBufferDesc.MiscFlags = 0;
+                    indexBufferDesc.StructureByteStride = sizeof(*entry->model.indices);
+                    ID3D11Buffer* indexBuffer;
+                    D3D11_SUBRESOURCE_DATA indexResDesc = {};
+                    indexResDesc.pSysMem = entry->model.indices;
+                    d3d11.device->CreateBuffer(&indexBufferDesc, &indexResDesc, &indexBuffer);
+
+                    struct ConstantBuffer
+                    {
+                        Mat4 transform;
+                        Color color;
+                    };
+
+                    ConstantBuffer cbuffer;
+                    cbuffer.transform = entry->model.transform;
+                    cbuffer.color = entry->color;
+
+                    D3D11_BUFFER_DESC constBufferDesc = {};
+                    constBufferDesc.ByteWidth = sizeof(cbuffer);
+                    constBufferDesc.Usage = D3D11_USAGE_DYNAMIC;
+                    constBufferDesc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+                    constBufferDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+                    constBufferDesc.MiscFlags = 0;
+                    constBufferDesc.StructureByteStride = 0;
+                    D3D11_SUBRESOURCE_DATA constResDesc = {};
+                    constResDesc.pSysMem = &cbuffer;
+                    ID3D11Buffer* constantBuffer;
+                    d3d11.device->CreateBuffer(&constBufferDesc, &constResDesc, &constantBuffer);
+                    d3d11.deviceContext->VSSetConstantBuffers(0, 1, &constantBuffer);
+
+                    D3D11_VIEWPORT viewPort = {};
+                    viewPort.TopLeftX = 0;
+                    viewPort.TopLeftY = 0;
+                    viewPort.Width = 800;
+                    viewPort.Height = 600;
+                    viewPort.MinDepth = 0;
+                    viewPort.MaxDepth = 1;
+
+                    ID3D11VertexShader* vertexShader;
+                    ID3D11PixelShader* pixelShader;
+                    d3d11.device->CreateVertexShader(renderGroup->defaultVertexShader, renderGroup->defaultVertexShaderSize, 0, &vertexShader);
+                    d3d11.device->CreatePixelShader(renderGroup->defaultPixelShader, renderGroup->defaultPixelShaderSize, 0, &pixelShader);
+
+
+                    d3d11.deviceContext->VSSetShader(vertexShader, 0, 0);
+                    d3d11.deviceContext->PSSetShader(pixelShader, 0, 0);
+
+                    D3D11_INPUT_ELEMENT_DESC layoutDesc[] =
+                    {
+                        {"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0},
+                        { "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, sizeof(Vec3), D3D11_INPUT_PER_VERTEX_DATA, 0 }
+                    };
+                    ID3D11InputLayout* inputLayout = {};
+                    d3d11.device->CreateInputLayout(layoutDesc, ARRAY_COUNT(layoutDesc), renderGroup->defaultVertexShader, renderGroup->defaultVertexShaderSize, &inputLayout);
+
+                    UINT stride[] = { sizeof(*entry->model.vertices) };
+                    UINT offset[] = { 0 };
+
+                    d3d11.deviceContext->IASetVertexBuffers(0, 1, &vertexBuffer, stride, offset);
+                    d3d11.deviceContext->IASetIndexBuffer(indexBuffer, DXGI_FORMAT_R32_UINT, 0);
+                    d3d11.deviceContext->IASetInputLayout(inputLayout);
+                    d3d11.deviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+                    d3d11.deviceContext->RSSetViewports(1, &viewPort);
+                }
+
+                d3d11.deviceContext->OMSetRenderTargets(1, &d3d11.renderTargetView, 0);
+                d3d11.deviceContext->DrawIndexed(entry->model.indexCount, 0, 0);
 
                 base = (u8*)base + sizeof(*entry);
             } break;
@@ -133,150 +277,6 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prevInstance, PSTR cmdLine, int
             }
 
 
-            // Vert vertices[] = {
-            //     {0.0f, 0.5f, 0.0f, 1.0f, 1.0f},
-            //     {0.5f, -0.5f, 0.0f, 0.0f, 1.0f},
-            //     {-0.5f, -0.5f, 0.0f, 1.0f, 0.0f},
-            // };
-
-            // D3D11_BUFFER_DESC vbd = {};
-            // vbd.ByteWidth = sizeof(vertices);
-            // vbd.Usage = D3D11_USAGE_DEFAULT;
-            // vbd.BindFlags = D3D11_BIND_VERTEX_BUFFER;
-            // vbd.CPUAccessFlags = 0;
-            // vbd.MiscFlags = 0;
-            // vbd.StructureByteStride = sizeof(Vert);
-            // ID3D11Buffer* vertexBuffer;
-            // D3D11_SUBRESOURCE_DATA vrd = {};
-            // vrd.pSysMem = vertices;
-            // d3d11.device->CreateBuffer(&vbd, &vrd, &vertexBuffer);
-
-            // u16 indicies[] =
-            // {
-            //     0, 1, 2,
-            // };
-
-            // D3D11_BUFFER_DESC ibd = {};
-            // ibd.ByteWidth = sizeof(indicies);
-            // ibd.Usage = D3D11_USAGE_DEFAULT;
-            // ibd.BindFlags = D3D11_BIND_INDEX_BUFFER;
-            // ibd.CPUAccessFlags = 0;
-            // ibd.MiscFlags = 0;
-            // ibd.StructureByteStride = sizeof(u16);
-            // ID3D11Buffer* indexBuffer;
-            // D3D11_SUBRESOURCE_DATA ird = {};
-            // ird.pSysMem = indicies;
-            // d3d11.device->CreateBuffer(&ibd, &ird, &indexBuffer);
-            // d3d11.deviceContext->IASetIndexBuffer(indexBuffer, DXGI_FORMAT_R16_UINT, 0);
-
-            // struct ConstantBuffer
-            // {
-            //     Mat4 transform;
-            // };
-
-            // ConstantBuffer cbuffer =
-            // {
-            //     {
-            //         1.0f, 0.0f, 0.0f, 0.0f,
-            //         0.0f, 1.0f, 0.0f, 0.0f,
-            //         0.0f, 0.0f, 1.0f, 0.0f,
-            //         0.0f, 0.0f, 0.0f, 1.0f,
-            //     },
-            // };
-            // D3D11_BUFFER_DESC tbd = {};
-            // tbd.ByteWidth = sizeof(cbuffer);
-            // tbd.Usage = D3D11_USAGE_DYNAMIC;
-            // tbd.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
-            // tbd.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
-            // tbd.MiscFlags = 0;
-            // tbd.StructureByteStride = 0;
-            // D3D11_SUBRESOURCE_DATA trd = {};
-            // trd.pSysMem = &cbuffer;
-            // ID3D11Buffer* constantBuffer;
-            // d3d11.device->CreateBuffer(&tbd, &trd, &constantBuffer);
-            // d3d11.deviceContext->VSSetConstantBuffers(0, 1, &constantBuffer);
-
-            D3D11_VIEWPORT viewPort;
-            viewPort.TopLeftX = 0;
-            viewPort.TopLeftY = 0;
-            viewPort.Width = 800;
-            viewPort.Height = 600;
-            viewPort.MinDepth = 0;
-            viewPort.MaxDepth = 1;
-
-
-            //             UINT flags = D3DCOMPILE_ENABLE_STRICTNESS;
-            // #if defined( DEBUG ) || defined( _DEBUG )
-            //             flags |= D3DCOMPILE_DEBUG; // add more debug output
-            // #endif
-            //             ID3DBlob* vertexShaderBlob = NULL, * pixelShaderBlob = NULL, * error_blob = NULL;
-
-            //             // COMPILE VERTEX SHADER
-            //             HRESULT hr = D3DCompileFromFile(
-            //                 L"shaders.hlsl",
-            //                 nullptr,
-            //                 D3D_COMPILE_STANDARD_FILE_INCLUDE,
-            //                 "vs_main",
-            //                 "vs_5_0",
-            //                 flags,
-            //                 0,
-            //                 &vertexShaderBlob,
-            //                 &error_blob);
-            //             if (FAILED(hr)) {
-            //                 if (error_blob) {
-            //                     OutputDebugStringA((char*)error_blob->GetBufferPointer());
-            //                     error_blob->Release();
-            //                 }
-            //                 if (vertexShaderBlob) { vertexShaderBlob->Release(); }
-            //                 ASSERT(false);
-            //             }
-
-            //             // COMPILE PIXEL SHADER
-            //             hr = D3DCompileFromFile(
-            //                 L"shaders.hlsl",
-            //                 nullptr,
-            //                 D3D_COMPILE_STANDARD_FILE_INCLUDE,
-            //                 "ps_main",
-            //                 "ps_5_0",
-            //                 flags,
-            //                 0,
-            //                 &pixelShaderBlob,
-            //                 &error_blob);
-            //             if (FAILED(hr)) {
-            //                 if (error_blob) {
-            //                     OutputDebugStringA((char*)error_blob->GetBufferPointer());
-            //                     error_blob->Release();
-            //                 }
-            //                 if (pixelShaderBlob) { pixelShaderBlob->Release(); }
-            //                 ASSERT(false);
-            //             }
-
-            //             ID3D11VertexShader* vertexShader;
-            //             ID3D11PixelShader* pixelShader;
-            //             d3d11.device->CreateVertexShader(vertexShaderBlob->GetBufferPointer(), vertexShaderBlob->GetBufferSize(), 0, &vertexShader);
-            //             d3d11.device->CreatePixelShader(pixelShaderBlob->GetBufferPointer(), pixelShaderBlob->GetBufferSize(), 0, &pixelShader);
-
-
-            //             d3d11.deviceContext->VSSetShader(vertexShader, 0, 0);
-            //             d3d11.deviceContext->PSSetShader(pixelShader, 0, 0);
-
-            //             D3D11_INPUT_ELEMENT_DESC layoutDesc[] =
-            //             {
-            //                 {"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0},
-            //                 { "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, sizeof(Vec3), D3D11_INPUT_PER_VERTEX_DATA, 0 }
-            //             };
-            //             ID3D11InputLayout* inputLayout = {};
-            //             d3d11.device->CreateInputLayout(layoutDesc, ARRAY_COUNT(layoutDesc), vertexShaderBlob->GetBufferPointer(), vertexShaderBlob->GetBufferSize(), &inputLayout);
-            //             d3d11.deviceContext->IASetInputLayout(inputLayout);
-
-            //             UINT stride[] = { sizeof(Vert) , sizeof(Vert) };
-            //             UINT offset[] = { offsetof(Vert, pos), offsetof(Vert, uv) };
-            //             d3d11.deviceContext->IASetVertexBuffers(0, 2, &vertexBuffer, stride, offset);
-
-            //             d3d11.deviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-
-            d3d11.deviceContext->RSSetViewports(1, &viewPort);
-
             GameMemory gameMemory;
             size_t persistantArenaSize = MEGABYTES(64);
             size_t transientArenaSize = MEGABYTES(64);
@@ -288,9 +288,13 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prevInstance, PSTR cmdLine, int
             RenderGroup* renderGroup = PUSH_TYPE(&gameMemory.persistantArena, RenderGroup);
             InitMemoryArena(&renderGroup->pushBuffer, pushBufferSize, (u8*)memory + persistantArenaSize + transientArenaSize);
 
+            Win32GameCode gameCode = Win32LoadGameCode("game.dll");
+            gameCode.InitGame(gameState, renderGroup, &gameMemory);
+
             MSG msg;
             while (running)
             {
+                Win32ReloadGameCode(&gameCode);
                 while (PeekMessage(&msg, windowHandle, 0, 0, PM_REMOVE))
                     switch (msg.message)
                     {
@@ -325,26 +329,10 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prevInstance, PSTR cmdLine, int
 
                 ResetMemoryArena(&gameMemory.transientArena);
                 ResetMemoryArena(&renderGroup->pushBuffer);
-
-                PushRenderClear(renderGroup, { 1.0f, 1.0f, 1.0f, 1.0f });
-
-                // D3D11_MAPPED_SUBRESOURCE mapped_subresource;
-                // d3d11.deviceContext->Map((ID3D11Resource*)constantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped_subresource);
-                // ((ConstantBuffer*)(mapped_subresource.pData))[0].transform =
-                // {
-
-                //         Cos((f32)GetTickCount() / 100), Sin((f32)GetTickCount() / 100), 0.0f, 0.0f,
-                //         -Sin((f32)GetTickCount() / 100), Cos((f32)GetTickCount() / 100), 0.0f, 0.0f,
-                //         0.0f, 0.0f, 1.0f, 0.0f,
-                //         0.0f, 0.0f, 0.0f, 1.0f,
-                // };
-
-                // d3d11.deviceContext->Unmap((ID3D11Resource*)constantBuffer, 0);
-
-                // d3d11.deviceContext->DrawIndexed(ARRAY_COUNT(indicies), 0, 0);
+                gameCode.UpdateGame(gameState, renderGroup, &gameMemory);
 
                 Win32RenderOutput(renderGroup, d3d11);
-
+                d3d11.swapChain->Present(0, 0);
             }
         }
         else

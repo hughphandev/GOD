@@ -1,7 +1,6 @@
 #ifndef HZ_UTILS_H
 #define HZ_UTILS_H
 
-#include "crt.h"
 #include "hz_types.h"
 
 #define ARRAY_COUNT(array) (sizeof(array) / sizeof((array)[0]))
@@ -59,6 +58,7 @@ f32 Max(f32* value, int count)
   return result;
 }
 
+#include <string.h>
 
 void Memcpy(void* dest, void* src, size_t size)
 {
@@ -85,7 +85,6 @@ inline i32 StrToI(char* str, char** pStr)
   }
   return result * sign;
 }
-
 
 inline size_t CountSubString(char* input, char* subString)
 {

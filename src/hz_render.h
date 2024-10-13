@@ -10,9 +10,26 @@ struct Vert
     Vec2 uv;
 };
 
+struct LoadedModel
+{
+    Mat4 transform;
+
+    Vert* vertices;
+    u32 vertexCount;
+    u32* indices;
+    u32 indexCount;
+
+    char* shaderFileName;
+    u32 shaderSize;
+};
+
 struct RenderGroup
 {
     MemoryArena pushBuffer;
+    void* defaultVertexShader;
+    u32 defaultVertexShaderSize;
+    void* defaultPixelShader;
+    u32 defaultPixelShaderSize;
 };
 
 enum RenderCommandType
@@ -28,6 +45,12 @@ struct RenderCommandHeader
 
 struct RenderCommandClear
 {
+    Color color;
+};
+
+struct RenderCommandModel
+{
+    LoadedModel model;
     Color color;
 };
 
@@ -53,8 +76,15 @@ void* PushRenderElement_(RenderGroup* renderGroup, size_t size, RenderCommandTyp
 
 void PushRenderClear(RenderGroup* renderGroup, Color color)
 {
-    RenderCommandClear* clear = PUSH_RENDER_ELEMENT(renderGroup, RenderCommandClear);
-    clear->color = color;
+    RenderCommandClear* command = PUSH_RENDER_ELEMENT(renderGroup, RenderCommandClear);
+    command->color = color;
+}
+
+void PushRenderModel(RenderGroup* renderGroup, LoadedModel model, Color color)
+{
+    RenderCommandModel* command = PUSH_RENDER_ELEMENT(renderGroup, RenderCommandModel);
+    command->color = color;
+    command->model = model;
 }
 
 
