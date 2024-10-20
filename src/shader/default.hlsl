@@ -14,7 +14,8 @@ struct vs_out {
 
 cbuffer cbuf
 {
-  matrix transform;
+  matrix modelView;
+  matrix proj;
   float4 color;
 };
 
@@ -25,8 +26,11 @@ struct ps_out {
 
 vs_out vs_main(vs_in input) {
   vs_out output = (vs_out)0; // zero the memory first
-  output.position_clip = mul(float4(input.position_local, 1.0), transform);
-  output.color = float3(1,1,1);
+  output.position_clip = mul(mul(float4(input.position_local, 1.0), modelView), proj);
+  // float z = output.position_clip.z;
+  // float w = output.position_clip.z;
+  output.position_clip.z = 0.5;
+  output.color = float3(0, 0, 0);
   return output;
 }
 

@@ -2,13 +2,13 @@
 #include <windows.h>
 #include <d3d11.h>
 #include <d3dcompiler.h>
+#include <directxmath.h>
 
 #include <sys/stat.h> 
 #include "hz_math.h"
 #include "hz_utils.h"
 #include "hz_render.h"
 #include "game.h"
-static bool running = true;
 
 struct Win32D3D11
 {
@@ -66,6 +66,55 @@ void Win32ReloadGameCode(Win32GameCode* gameCode)
     }
 }
 
+static void Win32InitScene(GameState* gameState, RenderGroup* renderGroup, Win32D3D11* d3d11, HWND windowHandle)
+{
+
+    DXGI_SWAP_CHAIN_DESC swapChainDesc = {};
+    swapChainDesc.BufferDesc.Width = 0;
+    swapChainDesc.BufferDesc.Height = 0;
+    swapChainDesc.BufferDesc.RefreshRate.Numerator = 0;
+    swapChainDesc.BufferDesc.RefreshRate.Denominator = 0;
+    swapChainDesc.BufferDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
+    swapChainDesc.BufferDesc.Scaling = DXGI_MODE_SCALING_UNSPECIFIED;
+    swapChainDesc.BufferDesc.ScanlineOrdering = DXGI_MODE_SCANLINE_ORDER_UNSPECIFIED;
+    swapChainDesc.SampleDesc.Count = 1;
+    swapChainDesc.SampleDesc.Quality = 0;
+    swapChainDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
+    swapChainDesc.BufferCount = 2;
+    swapChainDesc.OutputWindow = windowHandle;
+    swapChainDesc.Windowed = true;
+    swapChainDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
+    swapChainDesc.Flags = 0;
+
+    HRESULT result = D3D11CreateDeviceAndSwapChain(0, D3D_DRIVER_TYPE_HARDWARE, 0, D3D11_CREATE_DEVICE_DEBUG, 0, 0, D3D11_SDK_VERSION, &swapChainDesc, &d3d11->swapChain, &d3d11->device, 0, &d3d11->deviceContext);
+
+    if (SUCCEEDED(result))
+    {
+        ID3D11Texture2D* frameBuffer;
+        if (!SUCCEEDED(d3d11->swapChain->GetBuffer(0, __uuidof(ID3D11Texture2D), (void**)&frameBuffer)))
+        {
+            //TODO: Logging
+            ASSERT(false);
+        }
+
+        if (!SUCCEEDED(d3d11->device->CreateRenderTargetView(frameBuffer, 0, &d3d11->renderTargetView)))
+        {
+            //TODO: Logging
+            ASSERT(false);
+        }
+
+        D3D11_VIEWPORT viewPort = {};
+        viewPort.TopLeftX = 0;
+        viewPort.TopLeftY = 0;
+        viewPort.Width = (FLOAT)gameState->width;
+        viewPort.Height = (FLOAT)gameState->height;
+        viewPort.MinDepth = 0;
+        viewPort.MaxDepth = 1;
+
+        d3d11->deviceContext->RSSetViewports(1, &viewPort);
+    }
+}
+
 static void Win32RenderOutput(RenderGroup* renderGroup, Win32D3D11 d3d11)
 {
     for (void* base = renderGroup->pushBuffer.base; base < (u8*)renderGroup->pushBuffer.base + renderGroup->pushBuffer.used;)
@@ -88,95 +137,83 @@ static void Win32RenderOutput(RenderGroup* renderGroup, Win32D3D11 d3d11)
             {
                 RenderCommandModel* entry = (RenderCommandModel*)base;
 
-                static bool first = false;
-                if (!first)
+                D3D11_BUFFER_DESC vertexBufferDesc = {};
+                vertexBufferDesc.ByteWidth = sizeof(*entry->model->vertices) * entry->model->vertexCount;
+                vertexBufferDesc.Usage = D3D11_USAGE_DEFAULT;
+                vertexBufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+                vertexBufferDesc.CPUAccessFlags = 0;
+                vertexBufferDesc.MiscFlags = 0;
+                vertexBufferDesc.StructureByteStride = sizeof(*entry->model->vertices);
+                ID3D11Buffer* vertexBuffer;
+                D3D11_SUBRESOURCE_DATA vertexResDesc = {};
+                vertexResDesc.pSysMem = entry->model->vertices;
+                d3d11.device->CreateBuffer(&vertexBufferDesc, &vertexResDesc, &vertexBuffer);
+
+
+                D3D11_BUFFER_DESC indexBufferDesc = {};
+                indexBufferDesc.ByteWidth = sizeof(*entry->model->indices) * entry->model->indexCount;
+                indexBufferDesc.Usage = D3D11_USAGE_DEFAULT;
+                indexBufferDesc.BindFlags = D3D11_BIND_INDEX_BUFFER;
+                indexBufferDesc.CPUAccessFlags = 0;
+                indexBufferDesc.MiscFlags = 0;
+                indexBufferDesc.StructureByteStride = sizeof(*entry->model->indices);
+                ID3D11Buffer* indexBuffer;
+                D3D11_SUBRESOURCE_DATA indexResDesc = {};
+                indexResDesc.pSysMem = entry->model->indices;
+                d3d11.device->CreateBuffer(&indexBufferDesc, &indexResDesc, &indexBuffer);
+
+                struct ConstantBuffer
                 {
-                    first = true;
-                    D3D11_BUFFER_DESC vertexBufferDesc = {};
-                    vertexBufferDesc.ByteWidth = sizeof(*entry->model.vertices) * entry->model.vertexCount;
-                    vertexBufferDesc.Usage = D3D11_USAGE_DEFAULT;
-                    vertexBufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
-                    vertexBufferDesc.CPUAccessFlags = 0;
-                    vertexBufferDesc.MiscFlags = 0;
-                    vertexBufferDesc.StructureByteStride = sizeof(Vert);
-                    ID3D11Buffer* vertexBuffer;
-                    D3D11_SUBRESOURCE_DATA vertexResDesc = {};
-                    vertexResDesc.pSysMem = entry->model.vertices;
-                    d3d11.device->CreateBuffer(&vertexBufferDesc, &vertexResDesc, &vertexBuffer);
+                    Mat4 modelView;
+                    Mat4 projection;
+                    Color color;
+                };
+
+                ConstantBuffer cbuffer;
+                cbuffer.modelView = GetViewMatrix(entry->camera->position, entry->camera->direction, entry->camera->worldUp) * entry->model->transform;
+                cbuffer.projection = GetPerspectiveProjection(entry->camera->fovy, entry->camera->aspect, 1.0f, 100.0f);
+                cbuffer.color = entry->color;
+
+                D3D11_BUFFER_DESC constBufferDesc = {};
+                constBufferDesc.ByteWidth = sizeof(cbuffer);
+                constBufferDesc.Usage = D3D11_USAGE_DYNAMIC;
+                constBufferDesc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+                constBufferDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+                constBufferDesc.MiscFlags = 0;
+                constBufferDesc.StructureByteStride = 0;
+                D3D11_SUBRESOURCE_DATA constResDesc = {};
+                constResDesc.pSysMem = &cbuffer;
+                ID3D11Buffer* constantBuffer;
+                d3d11.device->CreateBuffer(&constBufferDesc, &constResDesc, &constantBuffer);
+                d3d11.deviceContext->VSSetConstantBuffers(0, 1, &constantBuffer);
 
 
-                    D3D11_BUFFER_DESC indexBufferDesc = {};
-                    indexBufferDesc.ByteWidth = sizeof(*entry->model.indices) * entry->model.indexCount;
-                    indexBufferDesc.Usage = D3D11_USAGE_DEFAULT;
-                    indexBufferDesc.BindFlags = D3D11_BIND_INDEX_BUFFER;
-                    indexBufferDesc.CPUAccessFlags = 0;
-                    indexBufferDesc.MiscFlags = 0;
-                    indexBufferDesc.StructureByteStride = sizeof(*entry->model.indices);
-                    ID3D11Buffer* indexBuffer;
-                    D3D11_SUBRESOURCE_DATA indexResDesc = {};
-                    indexResDesc.pSysMem = entry->model.indices;
-                    d3d11.device->CreateBuffer(&indexBufferDesc, &indexResDesc, &indexBuffer);
+                ID3D11VertexShader* vertexShader;
+                ID3D11PixelShader* pixelShader;
+                d3d11.device->CreateVertexShader(renderGroup->defaultVertexShader, renderGroup->defaultVertexShaderSize, 0, &vertexShader);
+                d3d11.device->CreatePixelShader(renderGroup->defaultPixelShader, renderGroup->defaultPixelShaderSize, 0, &pixelShader);
 
-                    struct ConstantBuffer
-                    {
-                        Mat4 transform;
-                        Color color;
-                    };
+                d3d11.deviceContext->VSSetShader(vertexShader, 0, 0);
+                d3d11.deviceContext->PSSetShader(pixelShader, 0, 0);
 
-                    ConstantBuffer cbuffer;
-                    cbuffer.transform = entry->model.transform;
-                    cbuffer.color = entry->color;
+                D3D11_INPUT_ELEMENT_DESC layoutDesc[] =
+                {
+                    {"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0},
+                    { "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, sizeof(Vec3), D3D11_INPUT_PER_VERTEX_DATA, 0 }
+                };
+                ID3D11InputLayout* inputLayout = {};
+                d3d11.device->CreateInputLayout(layoutDesc, ARRAY_COUNT(layoutDesc), renderGroup->defaultVertexShader, renderGroup->defaultVertexShaderSize, &inputLayout);
 
-                    D3D11_BUFFER_DESC constBufferDesc = {};
-                    constBufferDesc.ByteWidth = sizeof(cbuffer);
-                    constBufferDesc.Usage = D3D11_USAGE_DYNAMIC;
-                    constBufferDesc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
-                    constBufferDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
-                    constBufferDesc.MiscFlags = 0;
-                    constBufferDesc.StructureByteStride = 0;
-                    D3D11_SUBRESOURCE_DATA constResDesc = {};
-                    constResDesc.pSysMem = &cbuffer;
-                    ID3D11Buffer* constantBuffer;
-                    d3d11.device->CreateBuffer(&constBufferDesc, &constResDesc, &constantBuffer);
-                    d3d11.deviceContext->VSSetConstantBuffers(0, 1, &constantBuffer);
+                UINT stride[] = { sizeof(*entry->model->vertices) };
+                UINT offset[] = { 0 };
 
-                    D3D11_VIEWPORT viewPort = {};
-                    viewPort.TopLeftX = 0;
-                    viewPort.TopLeftY = 0;
-                    viewPort.Width = 800;
-                    viewPort.Height = 600;
-                    viewPort.MinDepth = 0;
-                    viewPort.MaxDepth = 1;
-
-                    ID3D11VertexShader* vertexShader;
-                    ID3D11PixelShader* pixelShader;
-                    d3d11.device->CreateVertexShader(renderGroup->defaultVertexShader, renderGroup->defaultVertexShaderSize, 0, &vertexShader);
-                    d3d11.device->CreatePixelShader(renderGroup->defaultPixelShader, renderGroup->defaultPixelShaderSize, 0, &pixelShader);
-
-
-                    d3d11.deviceContext->VSSetShader(vertexShader, 0, 0);
-                    d3d11.deviceContext->PSSetShader(pixelShader, 0, 0);
-
-                    D3D11_INPUT_ELEMENT_DESC layoutDesc[] =
-                    {
-                        {"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0},
-                        { "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, sizeof(Vec3), D3D11_INPUT_PER_VERTEX_DATA, 0 }
-                    };
-                    ID3D11InputLayout* inputLayout = {};
-                    d3d11.device->CreateInputLayout(layoutDesc, ARRAY_COUNT(layoutDesc), renderGroup->defaultVertexShader, renderGroup->defaultVertexShaderSize, &inputLayout);
-
-                    UINT stride[] = { sizeof(*entry->model.vertices) };
-                    UINT offset[] = { 0 };
-
-                    d3d11.deviceContext->IASetVertexBuffers(0, 1, &vertexBuffer, stride, offset);
-                    d3d11.deviceContext->IASetIndexBuffer(indexBuffer, DXGI_FORMAT_R32_UINT, 0);
-                    d3d11.deviceContext->IASetInputLayout(inputLayout);
-                    d3d11.deviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-                    d3d11.deviceContext->RSSetViewports(1, &viewPort);
-                }
+                d3d11.deviceContext->IASetVertexBuffers(0, 1, &vertexBuffer, stride, offset);
+                d3d11.deviceContext->IASetIndexBuffer(indexBuffer, DXGI_FORMAT_R32_UINT, 0);
+                d3d11.deviceContext->IASetInputLayout(inputLayout);
+                d3d11.deviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
                 d3d11.deviceContext->OMSetRenderTargets(1, &d3d11.renderTargetView, 0);
-                d3d11.deviceContext->DrawIndexed(entry->model.indexCount, 0, 0);
+                d3d11.deviceContext->DrawIndexed(entry->model->indexCount, 0, 0);
 
                 base = (u8*)base + sizeof(*entry);
             } break;
@@ -185,6 +222,7 @@ static void Win32RenderOutput(RenderGroup* renderGroup, Win32D3D11 d3d11)
                 break;
         }
     }
+    d3d11.swapChain->Present(0, 0);
 }
 
 LRESULT Win32WindowProc(HWND windowHandle, UINT message, WPARAM wParam, LPARAM lParam)
@@ -199,14 +237,14 @@ LRESULT Win32WindowProc(HWND windowHandle, UINT message, WPARAM wParam, LPARAM l
         break;
         case WM_DESTROY:
         {
-            running = false;
+            PostQuitMessage(0);
             OutputDebugStringA("WM_DESROY\n");
         }
         break;
 
         case WM_CLOSE:
         {
-            running = false;
+            PostQuitMessage(0);
             OutputDebugStringA("WM_CLOSE\n");
         }
         break;
@@ -225,114 +263,131 @@ LRESULT Win32WindowProc(HWND windowHandle, UINT message, WPARAM wParam, LPARAM l
     return result;
 }
 
+static void Win32ProcessKeyboardInput(ButtonState* button, bool isDown)
+{
+    ASSERT(button->isDown != isDown);
+    button->isDown = isDown;
+    button->halfTransitionCount++;
+}
+
+static void Win32ProcessPendingMessage(GameState* gameState)
+{
+    MSG msg;
+    while (PeekMessage(&msg, 0, 0, 0, PM_REMOVE))
+        switch (msg.message)
+        {
+            case WM_QUIT:
+            {
+                gameState->running = false;
+            }
+            break;
+            case WM_SYSKEYDOWN:
+            case WM_SYSKEYUP:
+            case WM_KEYDOWN:
+            case WM_KEYUP:
+            {
+                bool wasDown = ((msg.lParam & (1 << 30)) != 0);
+                bool isDown = ((msg.lParam & (1 << 31)) == 0);
+
+                if (isDown != wasDown)
+                {
+                    if (msg.wParam == 'W')
+                    {
+                        Win32ProcessKeyboardInput(&gameState->input.up, isDown);
+                    }
+                    if (msg.wParam == 'S')
+                    {
+                        Win32ProcessKeyboardInput(&gameState->input.down, isDown);
+                    }
+                    if (msg.wParam == 'A')
+                    {
+                        Win32ProcessKeyboardInput(&gameState->input.left, isDown);
+                    }
+                    if (msg.wParam == 'D')
+                    {
+                        Win32ProcessKeyboardInput(&gameState->input.right, isDown);
+                    }
+                    if (msg.wParam == VK_ESCAPE)
+                    {
+                        Win32ProcessKeyboardInput(&gameState->input.escape, isDown);
+                    }
+                    if (msg.wParam == VK_SPACE)
+                    {
+                        Win32ProcessKeyboardInput(&gameState->input.space, isDown);
+                    }
+                    if (msg.wParam == VK_F1)
+                    {
+                        Win32ProcessKeyboardInput(&gameState->input.f1, isDown);
+                    }
+                    if (msg.wParam == VK_F3)
+                    {
+                        Win32ProcessKeyboardInput(&gameState->input.f3, isDown);
+                    }
+                    if (isDown)
+                    {
+                        bool32 altKey = (msg.lParam & (1 << 29));
+                        if (altKey && msg.wParam == VK_F4)
+                        {
+                            PostQuitMessage(0);
+                        }
+                    }
+                }
+            }
+            break;
+            default:
+            {
+                TranslateMessage(&msg);
+                DispatchMessage(&msg);
+            }
+            break;
+        }
+}
+
 int WINAPI WinMain(HINSTANCE instance, HINSTANCE prevInstance, PSTR cmdLine, int cmdShow)
 {
+    GameMemory gameMemory;
+    size_t persistantArenaSize = MEGABYTES(64);
+    size_t transientArenaSize = MEGABYTES(64);
+    size_t pushBufferSize = MEGABYTES(4);
+    void* memory = VirtualAlloc(0, persistantArenaSize + transientArenaSize + pushBufferSize, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+    InitMemoryArena(&gameMemory.persistantArena, persistantArenaSize, memory);
+    InitMemoryArena(&gameMemory.transientArena, transientArenaSize, (u8*)memory + persistantArenaSize);
+    GameState* gameState = PUSH_TYPE(&gameMemory.persistantArena, GameState);
+    RenderGroup* renderGroup = PUSH_TYPE(&gameMemory.persistantArena, RenderGroup);
+    InitMemoryArena(&renderGroup->pushBuffer, pushBufferSize, (u8*)memory + persistantArenaSize + transientArenaSize);
+
+    Win32GameCode gameCode = Win32LoadGameCode("game.dll");
+    gameCode.InitGame(gameState, renderGroup, &gameMemory);
+
     WNDCLASSEX windowClass = {};
     windowClass.cbSize = sizeof(WNDCLASSEX);
     windowClass.style = CS_OWNDC | CS_VREDRAW | CS_HREDRAW;
     windowClass.lpfnWndProc = Win32WindowProc;
     windowClass.hInstance = instance;
     //  windowClass.hIcon;
-    windowClass.lpszClassName = "GodClass";
+    windowClass.lpszClassName = gameState->tittle;
 
 
     if (RegisterClassEx(&windowClass))
     {
-        HWND windowHandle = CreateWindowEx(0, windowClass.lpszClassName, "GOD", WS_OVERLAPPEDWINDOW | WS_VISIBLE, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, 0, 0, instance, 0);
+        HWND windowHandle = CreateWindowEx(0, windowClass.lpszClassName, gameState->tittle, WS_OVERLAPPEDWINDOW | WS_VISIBLE, CW_USEDEFAULT, CW_USEDEFAULT, gameState->width, gameState->height, 0, 0, instance, 0);
 
         Win32D3D11 d3d11 = {};
+        Win32InitScene(gameState, renderGroup, &d3d11, windowHandle);
 
-        DXGI_SWAP_CHAIN_DESC swapChainDesc = {};
-        swapChainDesc.BufferDesc.Width = 0;
-        swapChainDesc.BufferDesc.Height = 0;
-        swapChainDesc.BufferDesc.RefreshRate.Numerator = 0;
-        swapChainDesc.BufferDesc.RefreshRate.Denominator = 0;
-        swapChainDesc.BufferDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
-        swapChainDesc.BufferDesc.Scaling = DXGI_MODE_SCALING_UNSPECIFIED;
-        swapChainDesc.BufferDesc.ScanlineOrdering = DXGI_MODE_SCANLINE_ORDER_UNSPECIFIED;
-        swapChainDesc.SampleDesc.Count = 1;
-        swapChainDesc.SampleDesc.Quality = 0;
-        swapChainDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
-        swapChainDesc.BufferCount = 2;
-        swapChainDesc.OutputWindow = windowHandle;
-        swapChainDesc.Windowed = true;
-        swapChainDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
-        swapChainDesc.Flags = 0;
-
-        HRESULT result = D3D11CreateDeviceAndSwapChain(0, D3D_DRIVER_TYPE_HARDWARE, 0, D3D11_CREATE_DEVICE_DEBUG, 0, 0, D3D11_SDK_VERSION, &swapChainDesc, &d3d11.swapChain, &d3d11.device, 0, &d3d11.deviceContext);
-
-        if (windowHandle && SUCCEEDED(result))
+        if (windowHandle)
         {
-            ID3D11Texture2D* frameBuffer;
-            if (!SUCCEEDED(d3d11.swapChain->GetBuffer(0, __uuidof(ID3D11Texture2D), (void**)&frameBuffer)))
-            {
-                //TODO: Logging
-                ASSERT(false);
-            }
-
-            if (!SUCCEEDED(d3d11.device->CreateRenderTargetView(frameBuffer, 0, &d3d11.renderTargetView)))
-            {
-                //TODO: Logging
-                ASSERT(false);
-            }
-
-
-            GameMemory gameMemory;
-            size_t persistantArenaSize = MEGABYTES(64);
-            size_t transientArenaSize = MEGABYTES(64);
-            size_t pushBufferSize = MEGABYTES(4);
-            void* memory = VirtualAlloc(0, persistantArenaSize + transientArenaSize + pushBufferSize, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
-            InitMemoryArena(&gameMemory.persistantArena, persistantArenaSize, memory);
-            InitMemoryArena(&gameMemory.transientArena, transientArenaSize, (u8*)memory + persistantArenaSize);
-            GameState* gameState = PUSH_TYPE(&gameMemory.persistantArena, GameState);
-            RenderGroup* renderGroup = PUSH_TYPE(&gameMemory.persistantArena, RenderGroup);
-            InitMemoryArena(&renderGroup->pushBuffer, pushBufferSize, (u8*)memory + persistantArenaSize + transientArenaSize);
-
-            Win32GameCode gameCode = Win32LoadGameCode("game.dll");
-            gameCode.InitGame(gameState, renderGroup, &gameMemory);
-
-            MSG msg;
-            while (running)
+            while (gameState->running)
             {
                 Win32ReloadGameCode(&gameCode);
-                while (PeekMessage(&msg, windowHandle, 0, 0, PM_REMOVE))
-                    switch (msg.message)
-                    {
-                        case WM_KEYDOWN:
-                        {
-                            OutputDebugStringA("WM_KEYDOWN\n");
-                        }
-                        break;
-                        case WM_KEYUP:
-                        {
-                            OutputDebugStringA("WM_KEYUP\n");
-                        }
-                        break;
-                        case WM_SYSKEYDOWN:
-                        {
-                            OutputDebugStringA("WM_SYSKEYDOWN\n");
-                        }
-                        break;
-                        case WM_SYSKEYUP:
-                        {
-                            OutputDebugStringA("WM_SYSKEYUP\n");
-                        }
-                        break;
 
-                        default:
-                        {
-                            TranslateMessage(&msg);
-                            DispatchMessage(&msg);
-                        }
-                        break;
-                    }
+                Win32ProcessPendingMessage(gameState);
 
                 ResetMemoryArena(&gameMemory.transientArena);
                 ResetMemoryArena(&renderGroup->pushBuffer);
                 gameCode.UpdateGame(gameState, renderGroup, &gameMemory);
 
                 Win32RenderOutput(renderGroup, d3d11);
-                d3d11.swapChain->Present(0, 0);
             }
         }
         else

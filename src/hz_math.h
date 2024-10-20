@@ -51,7 +51,7 @@ union Vec4
 
   f32 e[4];
 };
-typedef Vec4 quaternion;
+typedef Vec4 Quaternion;
 typedef Vec4 Color;
 
 union Mat4
@@ -760,9 +760,9 @@ u32 ToU32Color(Vec4 a)
   return (alpha << 24) | (blue << 16) | (green << 8) | (red << 0);
 }
 
-quaternion FromEuler(float pitch, float yaw, float roll)
+Quaternion FromEuler(float pitch, float yaw, float roll)
 {
-  quaternion result = { 0 };
+  Quaternion result = { 0 };
 
   float x0 = Cos(pitch * 0.5f);
   float x1 = Sin(pitch * 0.5f);
@@ -779,9 +779,9 @@ quaternion FromEuler(float pitch, float yaw, float roll)
   return result;
 }
 
-quaternion FromAxisAngle(Vec3 axis, f32 angle)
+Quaternion FromAxisAngle(Vec3 axis, f32 angle)
 {
-  quaternion output = {};
+  Quaternion output = {};
   output.w = Cos(angle / 2.0f);
   f32 c = Sin(angle / 2.0f);
   output.x = c * axis.x;
@@ -789,7 +789,7 @@ quaternion FromAxisAngle(Vec3 axis, f32 angle)
   output.z = c * axis.z;
   return output;
 }
-void ToAxisAngle(quaternion q, Vec3* outAxis, f32* outAngle)
+void ToAxisAngle(Quaternion q, Vec3* outAxis, f32* outAngle)
 {
   if (Abs(q.w) > 1.0f)
   {
@@ -825,7 +825,7 @@ void ToAxisAngle(quaternion q, Vec3* outAxis, f32* outAngle)
   *outAngle = resAngle;
 }
 
-Vec3 Rotate(Vec3 v, quaternion q)
+Vec3 Rotate(Vec3 v, Quaternion q)
 {
   Vec3 result = { 0 };
 
@@ -982,6 +982,48 @@ inline bool operator==(Mat4 a, Mat4 b)
 //   }
 //   return result;
 // }
+
+Mat4 GetViewMatrix(Vec3 position, Vec3 direction, Vec3 worldUp) {
+  Vec3 right = Normalize(Cross(worldUp, direction));
+  Vec3 up = Cross(direction, right);
+
+  Mat4 result =
+  {
+    {
+      { right.x, right.y, right.z, -Dot(right, position) },
+      { up.x, up.y, up.z, -Dot(up, position) },
+      { direction.x, direction.y, direction.z, -Dot(direction, position) },
+      { 0, 0, 0, 1 },
+    }
+  };
+  return result;
+}
+
+Mat4 GetPerspectiveProjection(f32 fov, f32 aspect, f32 nPlane, f32 fPlane) {
+  float f = 1.0f / Tan(fov / 2.0f);
+  float delta = nPlane - fPlane;
+
+  Mat4 result = { {
+          {f / aspect, 0, 0, 0},
+          {0, f, 0, 0},
+          {0, 0, -fPlane / delta, (fPlane * nPlane) / delta},
+          {0, 0, 1, 0}
+      } };
+
+  return result;
+}
+
+Mat4 Transpose(Mat4 mat) {
+  Mat4 result = {
+      {
+          {mat.e[0][0], mat.e[1][0], mat.e[2][0], mat.e[3][0]},
+          {mat.e[0][1], mat.e[1][1], mat.e[2][1], mat.e[3][1]},
+          {mat.e[0][2], mat.e[1][2], mat.e[2][2], mat.e[3][2]},
+          {mat.e[0][3], mat.e[1][3], mat.e[2][3], mat.e[3][3]}
+      }
+  };
+  return result;
+}
 
 inline f32 Det(Mat4 a)
 {

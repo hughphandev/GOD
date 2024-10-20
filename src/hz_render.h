@@ -10,7 +10,17 @@ struct Vert
     Vec2 uv;
 };
 
-struct LoadedModel
+
+struct Camera
+{
+    Vec3 position;
+    Vec3 direction;
+    Vec3 worldUp;
+    float fovy;
+    float aspect;
+};
+
+struct Model
 {
     Mat4 transform;
 
@@ -18,9 +28,13 @@ struct LoadedModel
     u32 vertexCount;
     u32* indices;
     u32 indexCount;
+};
 
-    char* shaderFileName;
-    u32 shaderSize;
+struct Transform
+{
+    Vec3 position;
+    Quaternion rotation;
+    Vec3 scale;
 };
 
 struct RenderGroup
@@ -50,7 +64,8 @@ struct RenderCommandClear
 
 struct RenderCommandModel
 {
-    LoadedModel model;
+    Camera* camera;
+    Model* model;
     Color color;
 };
 
@@ -80,11 +95,12 @@ void PushRenderClear(RenderGroup* renderGroup, Color color)
     command->color = color;
 }
 
-void PushRenderModel(RenderGroup* renderGroup, LoadedModel model, Color color)
+void PushRenderModel(RenderGroup* renderGroup, Camera* camera, Model* model, Color color)
 {
     RenderCommandModel* command = PUSH_RENDER_ELEMENT(renderGroup, RenderCommandModel);
-    command->color = color;
+    command->camera = camera;
     command->model = model;
+    command->color = color;
 }
 
 

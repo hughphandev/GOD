@@ -12,6 +12,7 @@ set ProjectDir=%CD%
 set TestDir=%ProjectDir%\tests
 set BuildDir=%ProjectDir%\build
 set SourceDir=%ProjectDir%\src
+set ShaderDir=%SourceDir%\shader
 set VendorInclude=%ProjectDir%\vendor\include
 set VendorLibs=%ProjectDir%\vendor\lib 
 
@@ -27,9 +28,13 @@ mkdir %ObjDir% 2> NUL
 REM Clean up	
    del %BuildDir%\*.pdb
 
-REM Game code
+REM Compile Shader
+	fxc /Od /Zi /T vs_5_0 /E:vs_main /Fo %BuildDir%\default_vertex.fxo %ShaderDir%\default.hlsl
+	fxc /Od /Zi /T ps_5_0 /E:ps_main /Fo %BuildDir%\default_pixel.fxo %ShaderDir%\default.hlsl
+
+@REM REM Game code
 	@REM cl %CFlags% /I%ProjectDir% /I%IncludeDir% -Fo:%ObjDir% -Fd:%BuildDir% %ProjectDir%\src\game.cpp /link %LDFlags% /DLL /EXPORT:GameUpdateAndRender /EXPORT:GameOutputSound /OUT:%BuildDir%\game.dll /PDB:%BuildDir%\game_%DATETIME%.pdb
-	@REM cl -DLIBRARY_EXPORTS %CFlags% /I%SourceInclude% /I%VendorInclude% /Fo:%ObjDir% /Fd:%ObjDir% %GameFile% /link /DLL %LDFlags% %LDLibs% /LIBPATH:%VendorLibs% /OUT:%BuildDir%\game_temp.dll /PDB:%BuildDir%\game_%DATETIME%.pdb
+	cl -DLIBRARY_EXPORTS %CFlags% /I%VendorInclude% /Fo:%ObjDir% /Fd:%ObjDir% %GameFile% /link /DLL %LDFlags% %LDLibs% /LIBPATH:%VendorLibs% /OUT:%BuildDir%\game_temp.dll /PDB:%BuildDir%\game_%DATETIME%.pdb
 
 REM Platform code
 	cl %CFlags% /I%VendorInclude% /Fo:%ObjDir% /Fd:%ObjDir% %PlatformFiles% /link %LDFlags% %LDLibs% /LIBPATH:%VendorLibs% /OUT:%BuildDir%\GOD.exe 
