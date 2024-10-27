@@ -20,7 +20,13 @@ struct Camera
     float aspect;
 };
 
-struct Model
+struct Texture
+{
+    u32 width, height;
+    u32* texel;
+};
+
+struct LoadedModel
 {
     Mat4 transform;
 
@@ -28,6 +34,8 @@ struct Model
     u32 vertexCount;
     u32* indices;
     u32 indexCount;
+
+    Texture texture;
 };
 
 struct Transform
@@ -65,7 +73,7 @@ struct RenderCommandClear
 struct RenderCommandModel
 {
     Camera* camera;
-    Model* model;
+    LoadedModel* model;
     Color color;
 };
 
@@ -95,7 +103,7 @@ void PushRenderClear(RenderGroup* renderGroup, Color color)
     command->color = color;
 }
 
-void PushRenderModel(RenderGroup* renderGroup, Camera* camera, Model* model, Color color)
+void PushRenderModel(RenderGroup* renderGroup, Camera* camera, LoadedModel* model, Color color)
 {
     RenderCommandModel* command = PUSH_RENDER_ELEMENT(renderGroup, RenderCommandModel);
     command->camera = camera;

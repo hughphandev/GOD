@@ -3,11 +3,12 @@
 
 #include "hz_define.h"
 #include "hz_render.h"
+#include "hz_asset.h"
 
 struct Entity
 {
     Transform transform;
-    Model model;
+    LoadedModel model;
 };
 
 struct ButtonState
@@ -36,12 +37,25 @@ struct GameInput
     };
 
     // Mouse
-    i32 mouseX, mouseY, mouseZ;
-    i32 dMouseX, dMouseY;
+    Vec2I mouse;
+    Vec3I dMouse;
     bool mouseButtonState[5];
 
     // clock
     float dt;
+};
+
+enum class GameMode
+{
+    InGame,
+    Editor,
+
+    TERMINATOR,
+};
+
+struct GameAPI
+{
+
 };
 
 struct GameState
@@ -49,11 +63,19 @@ struct GameState
     bool running = true;
     char* tittle;
     int width, height;
-    Model testModel;
+    LoadedModel testModel;
+
+    GameMode gameMode;
+
+    float yaw, pitch;
+
+    bool showCursor;
+    bool lockCursor;
 
     Camera camera;
     //TODO: maybe introduce double buffering if necessary!
     GameInput input;
+    GameAPI api;
 };
 
 

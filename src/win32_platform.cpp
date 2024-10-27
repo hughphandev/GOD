@@ -1,5 +1,6 @@
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
+#include <windowsx.h>
 #include <d3d11.h>
 #include <d3dcompiler.h>
 #include <directxmath.h>
@@ -162,6 +163,43 @@ static void Win32RenderOutput(RenderGroup* renderGroup, Win32D3D11 d3d11)
                 indexResDesc.pSysMem = entry->model->indices;
                 d3d11.device->CreateBuffer(&indexBufferDesc, &indexResDesc, &indexBuffer);
 
+                D3D11_TEXTURE2D_DESC textureDesc = {};
+                textureDesc.Width = entry->model->texture.width;
+                textureDesc.Height = entry->model->texture.height;
+                textureDesc.MipLevels = 1;
+                textureDesc.ArraySize = 1;
+                textureDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+                textureDesc.SampleDesc.Count = 1;
+                textureDesc.SampleDesc.Quality = 0;
+                textureDesc.Usage = D3D11_USAGE_DEFAULT;
+                textureDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+                textureDesc.CPUAccessFlags = 0;
+                textureDesc.MiscFlags = 0;
+
+                D3D11_SUBRESOURCE_DATA initData = {};
+                initData.pSysMem = entry->model->texture.texel;
+                initData.SysMemPitch = sizeof(*entry->model->texture.texel);
+                initData.SysMemSlicePitch = sizeof(*entry->model->texture.texel) * entry->model->texture.width * entry->model->texture.height;
+
+                ID3D11Texture2D* tex = nullptr;
+                d3d11.device->CreateTexture2D(&textureDesc, &initData, &tex);
+
+                D3D11_SHADER_RESOURCE_VIEW_DESC resDesc = {};
+                resDesc.Format = textureDesc.Format;
+                resDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+                resDesc.Texture2D.MostDetailedMip = 0;
+                resDesc.Texture2D.MipLevels = 1;
+                ID3D11ShaderResourceView* shaderRes;
+                d3d11.device->CreateShaderResourceView(tex, &resDesc, &shaderRes);
+
+                D3D11_SAMPLER_DESC samplerDesc = {};
+                samplerDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
+                samplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
+                samplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
+                samplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
+                ID3D11SamplerState* samplerState;
+                d3d11.device->CreateSamplerState(&samplerDesc, &samplerState);
+
                 struct ConstantBuffer
                 {
                     Mat4 modelView;
@@ -185,7 +223,6 @@ static void Win32RenderOutput(RenderGroup* renderGroup, Win32D3D11 d3d11)
                 constResDesc.pSysMem = &cbuffer;
                 ID3D11Buffer* constantBuffer;
                 d3d11.device->CreateBuffer(&constBufferDesc, &constResDesc, &constantBuffer);
-                d3d11.deviceContext->VSSetConstantBuffers(0, 1, &constantBuffer);
 
 
                 ID3D11VertexShader* vertexShader;
@@ -199,7 +236,8 @@ static void Win32RenderOutput(RenderGroup* renderGroup, Win32D3D11 d3d11)
                 D3D11_INPUT_ELEMENT_DESC layoutDesc[] =
                 {
                     {"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0},
-                    { "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, sizeof(Vec3), D3D11_INPUT_PER_VERTEX_DATA, 0 }
+                    {"TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, sizeof(Vec3), D3D11_INPUT_PER_VERTEX_DATA, 0},
+                    // {"TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, sizeof(Vec3), D3D11_INPUT_PER_VERTEX_DATA, 0},
                 };
                 ID3D11InputLayout* inputLayout = {};
                 d3d11.device->CreateInputLayout(layoutDesc, ARRAY_COUNT(layoutDesc), renderGroup->defaultVertexShader, renderGroup->defaultVertexShaderSize, &inputLayout);
@@ -207,9 +245,12 @@ static void Win32RenderOutput(RenderGroup* renderGroup, Win32D3D11 d3d11)
                 UINT stride[] = { sizeof(*entry->model->vertices) };
                 UINT offset[] = { 0 };
 
+                d3d11.deviceContext->VSSetConstantBuffers(0, 1, &constantBuffer);
                 d3d11.deviceContext->IASetVertexBuffers(0, 1, &vertexBuffer, stride, offset);
                 d3d11.deviceContext->IASetIndexBuffer(indexBuffer, DXGI_FORMAT_R32_UINT, 0);
                 d3d11.deviceContext->IASetInputLayout(inputLayout);
+                d3d11.deviceContext->PSSetShaderResources(0, 1, &shaderRes);
+                d3d11.deviceContext->PSSetSamplers(0, 1, &samplerState);
                 d3d11.deviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
                 d3d11.deviceContext->OMSetRenderTargets(1, &d3d11.renderTargetView, 0);
@@ -272,6 +313,7 @@ static void Win32ProcessKeyboardInput(ButtonState* button, bool isDown)
 
 static void Win32ProcessPendingMessage(GameState* gameState)
 {
+    gameState->input.dMouse = {};
     MSG msg;
     while (PeekMessage(&msg, 0, 0, 0, PM_REMOVE))
         switch (msg.message)
@@ -281,6 +323,39 @@ static void Win32ProcessPendingMessage(GameState* gameState)
                 gameState->running = false;
             }
             break;
+            case WM_INPUT:
+            {
+                UINT dwSize;
+
+                GetRawInputData((HRAWINPUT)msg.lParam, RID_INPUT, NULL, &dwSize, sizeof(RAWINPUTHEADER));
+                LPBYTE lpb = new BYTE[dwSize];
+
+                if (GetRawInputData((HRAWINPUT)msg.lParam, RID_INPUT, lpb, &dwSize, sizeof(RAWINPUTHEADER)) != dwSize)
+                    OutputDebugString(TEXT("GetRawInputData does not return correct size !\n"));
+
+                RAWINPUT* raw = (RAWINPUT*)lpb;
+                if (raw->header.dwType == RIM_TYPEMOUSE)
+                {
+                    gameState->input.dMouse.x += raw->data.mouse.lLastX;
+                    gameState->input.dMouse.y += raw->data.mouse.lLastY;
+                }
+                delete[] lpb;
+            } break;
+            case WM_MOUSEMOVE:
+            {
+                gameState->input.mouse.x = GET_X_LPARAM(msg.lParam);
+                gameState->input.mouse.y = GET_Y_LPARAM(msg.lParam);
+
+                gameState->input.mouseButtonState[0] = (msg.wParam & MK_LBUTTON) != 0;
+                gameState->input.mouseButtonState[1] = (msg.wParam & MK_RBUTTON) != 0;
+                gameState->input.mouseButtonState[2] = (msg.wParam & MK_MBUTTON) != 0;
+                gameState->input.mouseButtonState[3] = (msg.wParam & MK_XBUTTON1) != 0;
+                gameState->input.mouseButtonState[4] = (msg.wParam & MK_XBUTTON2) != 0;
+            }
+            case WM_MOUSEWHEEL:
+            {
+                gameState->input.dMouse.z = GET_WHEEL_DELTA_WPARAM(msg.wParam);
+            } break;
             case WM_SYSKEYDOWN:
             case WM_SYSKEYUP:
             case WM_KEYDOWN:
@@ -364,6 +439,7 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prevInstance, PSTR cmdLine, int
     windowClass.style = CS_OWNDC | CS_VREDRAW | CS_HREDRAW;
     windowClass.lpfnWndProc = Win32WindowProc;
     windowClass.hInstance = instance;
+    windowClass.hCursor = LoadCursor(0, IDC_ARROW);
     //  windowClass.hIcon;
     windowClass.lpszClassName = gameState->tittle;
 
@@ -377,18 +453,31 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prevInstance, PSTR cmdLine, int
 
         if (windowHandle)
         {
+            RAWINPUTDEVICE rawInputDevices[1];
+            rawInputDevices[0].usUsagePage = 0x01;  // Mouse
+            rawInputDevices[0].usUsage = 0x02;      // Mouse
+            rawInputDevices[0].dwFlags = 0;
+            rawInputDevices[0].hwndTarget = windowHandle;
+
+            RegisterRawInputDevices(rawInputDevices, 1, sizeof(RAWINPUTDEVICE));
             while (gameState->running)
             {
                 Win32ReloadGameCode(&gameCode);
-
                 Win32ProcessPendingMessage(gameState);
 
                 ResetMemoryArena(&gameMemory.transientArena);
                 ResetMemoryArena(&renderGroup->pushBuffer);
                 gameCode.UpdateGame(gameState, renderGroup, &gameMemory);
 
+                RECT gameRect;
+                GetWindowRect(windowHandle, &gameRect);
+                if (gameState->lockCursor) SetCursorPos((gameRect.left + gameRect.right) / 2, (gameRect.top + gameRect.bottom) / 2);
+                ShowCursor(gameState->showCursor);
+
                 Win32RenderOutput(renderGroup, d3d11);
             }
+
+            CloseWindow(windowHandle);
         }
         else
         {

@@ -13,8 +13,8 @@ set TestDir=%ProjectDir%\tests
 set BuildDir=%ProjectDir%\build
 set SourceDir=%ProjectDir%\src
 set ShaderDir=%SourceDir%\shader
-set VendorInclude=%ProjectDir%\vendor\include
-set VendorLibs=%ProjectDir%\vendor\lib 
+set VendorInclude=%SourceDir%\vendor\include
+set VendorLibs=%SourceDir%\vendor\lib 
 
 set ObjDir=%BuildDir%\obj
 
@@ -22,6 +22,7 @@ set DATETIME=%date:~-4,4%%date:~-10,2%%date:~-7,2%_%time:~1,1%%time:~3,2%%time:~
 
 SET GameFile=%SourceDir%\game.cpp
 SET PlatformFiles=%SourceDir%\win32_platform.cpp
+SET AssetPackerFile=%SourceDir%\hz_asset_builder.cpp
 
 mkdir %ObjDir% 2> NUL
 
@@ -32,8 +33,11 @@ REM Compile Shader
 	fxc /Od /Zi /T vs_5_0 /E:vs_main /Fo %BuildDir%\default_vertex.fxo %ShaderDir%\default.hlsl
 	fxc /Od /Zi /T ps_5_0 /E:ps_main /Fo %BuildDir%\default_pixel.fxo %ShaderDir%\default.hlsl
 
+REM Asset Packer code
+	cl %CFlags% /I%VendorInclude% /Fo:%ObjDir% /Fd:%ObjDir% %AssetPackerFile% /link %LDFlags% %LDLibs% assimp-vc143-mt.lib /LIBPATH:%VendorLibs% /OUT:%BuildDir%\AssetPacker.exe 
+
+
 @REM REM Game code
-	@REM cl %CFlags% /I%ProjectDir% /I%IncludeDir% -Fo:%ObjDir% -Fd:%BuildDir% %ProjectDir%\src\game.cpp /link %LDFlags% /DLL /EXPORT:GameUpdateAndRender /EXPORT:GameOutputSound /OUT:%BuildDir%\game.dll /PDB:%BuildDir%\game_%DATETIME%.pdb
 	cl -DLIBRARY_EXPORTS %CFlags% /I%VendorInclude% /Fo:%ObjDir% /Fd:%ObjDir% %GameFile% /link /DLL %LDFlags% %LDLibs% /LIBPATH:%VendorLibs% /OUT:%BuildDir%\game_temp.dll /PDB:%BuildDir%\game_%DATETIME%.pdb
 
 REM Platform code

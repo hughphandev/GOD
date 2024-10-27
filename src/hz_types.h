@@ -19,4 +19,6 @@ typedef float f32;
 typedef bool b8;
 typedef i32 bool32;
 
+#define U32CODE(a, b, c, d) (((u32)(a) << 0) | ((u32)(b) << 8) | ((u32)(c) << 16) | ((u32)(d) << 24)) 
+
 #endif
