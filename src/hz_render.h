@@ -3,6 +3,7 @@
 
 #include "hz_memory.h"
 #include "hz_math.h"
+#include <d3d11.h>
 
 struct Vert
 {
@@ -52,6 +53,9 @@ struct RenderGroup
     u32 defaultVertexShaderSize;
     void* defaultPixelShader;
     u32 defaultPixelShaderSize;
+
+    //TODO: test code
+    ID3D11ShaderResourceView* shaderRes;
 };
 
 enum RenderCommandType

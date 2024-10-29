@@ -10,7 +10,7 @@ struct Asset
 
     union
     {
-        LoadedModel model;
+        LoadedModel loadedModel;
     };
 
 };
@@ -25,10 +25,10 @@ Asset LoadAsset(char* fileName, MemoryArena* arena)
     {
         case AssetType::Model:
         {
-            result.model.vertexCount = header->modelAssetInfo.vertCount;
-            result.model.indexCount = header->modelAssetInfo.indexCount;
-            result.model.vertices = (Vert*)((char*)file.content + header->modelAssetInfo.vert);
-            result.model.indices = (u32*)((char*)file.content + header->modelAssetInfo.index);
+            result.loadedModel = header->loadedModel;
+            result.loadedModel.vertices = (Vert*)((char*)file.content + (u64)header->loadedModel.vertices);
+            result.loadedModel.indices = (u32*)((char*)file.content + (u64)header->loadedModel.indices);
+            result.loadedModel.texture.texel = (u32*)((char*)file.content + (u64)header->loadedModel.texture.texel);
         }
         break;
 

@@ -11,17 +11,6 @@ enum class AssetType
     Texture,
 };
 
-struct ModelAssetInfo
-{
-    u32 vertCount;
-    u64 vert;
-    u32 indexCount;
-    u64 index;
-
-    Vec2I textureDim;
-};
-
-
 struct AssetHeader
 {
     u32 magicNumber;
@@ -30,7 +19,7 @@ struct AssetHeader
     AssetType type;
     union
     {
-        ModelAssetInfo modelAssetInfo;
+        LoadedModel loadedModel;
     };
 };
 #endif

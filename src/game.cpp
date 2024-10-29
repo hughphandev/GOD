@@ -23,7 +23,7 @@ HPI void Init(GameState* state, RenderGroup* renderGroup, GameMemory* gameMemory
     state->testModel.indexCount = 3;
     state->testModel.indices = PUSH_ARRAY(&gameMemory->persistantArena, u32, state->testModel.indexCount);
 
-    state->testModel = LoadAsset("asset\\obj.hza", &gameMemory->persistantArena).model;
+    state->testModel = LoadAsset("asset\\obj.hza", &gameMemory->persistantArena).loadedModel;
 
     state->testModel.transform =
     { 1.0f, 0.0f, 0.0f, 0.0f,
@@ -31,10 +31,10 @@ HPI void Init(GameState* state, RenderGroup* renderGroup, GameMemory* gameMemory
     0.0f, 0.0f, 1.0f, 0.0f,
     0.0f, 0.0f, 0.0f, 1.0f };
 
-    state->testModel.texture.width = 1;
-    state->testModel.texture.height = 1;
-    state->testModel.texture.texel = PUSH_ARRAY(&gameMemory->persistantArena, u32, state->testModel.texture.width * state->testModel.texture.height);
-    *state->testModel.texture.texel = ToU32Color({ 1.0f, 0.0f, 0.0f, 1.0f });
+    // state->testModel.texture.width = 1;
+    // state->testModel.texture.height = 1;
+    // state->testModel.texture.texel = PUSH_ARRAY(&gameMemory->persistantArena, u32, state->testModel.texture.width * state->testModel.texture.height);
+    // *state->testModel.texture.texel = ToU32Color({ 1.0f, 0.0f, 0.0f, 1.0f });
 
     state->camera.position = { 0, 0, -2 };
     state->camera.direction = { 0, 0, 1 };
@@ -65,9 +65,6 @@ HPI void Update(GameState* state, RenderGroup* renderGroup, GameMemory* gameMemo
             float sensitivity = 0.1f;
             state->yaw -= state->input.dMouse.x * sensitivity;
             state->pitch -= state->input.dMouse.y * sensitivity;
-            char debug[256];
-            wsprintf(debug, "%d, %d\n", state->input.mouse.x, state->input.mouse.y);
-            OutputDebugStringA(debug);
             if (state->pitch > 89.0f)
                 state->pitch = 89.0f;
             if (state->pitch < -89.0f)

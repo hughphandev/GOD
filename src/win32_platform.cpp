@@ -112,6 +112,35 @@ static void Win32InitScene(GameState* gameState, RenderGroup* renderGroup, Win32
         viewPort.MinDepth = 0;
         viewPort.MaxDepth = 1;
 
+        //TODO: test code only
+        D3D11_TEXTURE2D_DESC textureDesc = {};
+        textureDesc.Width = gameState->testModel.texture.width;
+        textureDesc.Height = gameState->testModel.texture.height;
+        textureDesc.MipLevels = 1;
+        textureDesc.ArraySize = 1;
+        textureDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+        textureDesc.SampleDesc.Count = 1;
+        textureDesc.SampleDesc.Quality = 0;
+        textureDesc.Usage = D3D11_USAGE_IMMUTABLE;
+        textureDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+        textureDesc.CPUAccessFlags = 0;
+        textureDesc.MiscFlags = 0;
+
+        D3D11_SUBRESOURCE_DATA initData = {};
+        initData.pSysMem = gameState->testModel.texture.texel;
+        initData.SysMemPitch = sizeof(*gameState->testModel.texture.texel) * gameState->testModel.texture.width;
+        initData.SysMemSlicePitch = sizeof(*gameState->testModel.texture.texel) * gameState->testModel.texture.width * gameState->testModel.texture.height;
+
+        ID3D11Texture2D* tex = nullptr;
+        d3d11->device->CreateTexture2D(&textureDesc, &initData, &tex);
+
+        D3D11_SHADER_RESOURCE_VIEW_DESC resDesc;
+        resDesc.Format = textureDesc.Format;
+        resDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+        resDesc.Texture2D.MostDetailedMip = 0;
+        resDesc.Texture2D.MipLevels = 1;
+        d3d11->device->CreateShaderResourceView(tex, &resDesc, &renderGroup->shaderRes);
+
         d3d11->deviceContext->RSSetViewports(1, &viewPort);
     }
 }
@@ -163,34 +192,6 @@ static void Win32RenderOutput(RenderGroup* renderGroup, Win32D3D11 d3d11)
                 indexResDesc.pSysMem = entry->model->indices;
                 d3d11.device->CreateBuffer(&indexBufferDesc, &indexResDesc, &indexBuffer);
 
-                D3D11_TEXTURE2D_DESC textureDesc = {};
-                textureDesc.Width = entry->model->texture.width;
-                textureDesc.Height = entry->model->texture.height;
-                textureDesc.MipLevels = 1;
-                textureDesc.ArraySize = 1;
-                textureDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-                textureDesc.SampleDesc.Count = 1;
-                textureDesc.SampleDesc.Quality = 0;
-                textureDesc.Usage = D3D11_USAGE_DEFAULT;
-                textureDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
-                textureDesc.CPUAccessFlags = 0;
-                textureDesc.MiscFlags = 0;
-
-                D3D11_SUBRESOURCE_DATA initData = {};
-                initData.pSysMem = entry->model->texture.texel;
-                initData.SysMemPitch = sizeof(*entry->model->texture.texel);
-                initData.SysMemSlicePitch = sizeof(*entry->model->texture.texel) * entry->model->texture.width * entry->model->texture.height;
-
-                ID3D11Texture2D* tex = nullptr;
-                d3d11.device->CreateTexture2D(&textureDesc, &initData, &tex);
-
-                D3D11_SHADER_RESOURCE_VIEW_DESC resDesc = {};
-                resDesc.Format = textureDesc.Format;
-                resDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
-                resDesc.Texture2D.MostDetailedMip = 0;
-                resDesc.Texture2D.MipLevels = 1;
-                ID3D11ShaderResourceView* shaderRes;
-                d3d11.device->CreateShaderResourceView(tex, &resDesc, &shaderRes);
 
                 D3D11_SAMPLER_DESC samplerDesc = {};
                 samplerDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
@@ -230,9 +231,6 @@ static void Win32RenderOutput(RenderGroup* renderGroup, Win32D3D11 d3d11)
                 d3d11.device->CreateVertexShader(renderGroup->defaultVertexShader, renderGroup->defaultVertexShaderSize, 0, &vertexShader);
                 d3d11.device->CreatePixelShader(renderGroup->defaultPixelShader, renderGroup->defaultPixelShaderSize, 0, &pixelShader);
 
-                d3d11.deviceContext->VSSetShader(vertexShader, 0, 0);
-                d3d11.deviceContext->PSSetShader(pixelShader, 0, 0);
-
                 D3D11_INPUT_ELEMENT_DESC layoutDesc[] =
                 {
                     {"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0},
@@ -245,11 +243,13 @@ static void Win32RenderOutput(RenderGroup* renderGroup, Win32D3D11 d3d11)
                 UINT stride[] = { sizeof(*entry->model->vertices) };
                 UINT offset[] = { 0 };
 
+                d3d11.deviceContext->VSSetShader(vertexShader, 0, 0);
+                d3d11.deviceContext->PSSetShader(pixelShader, 0, 0);
                 d3d11.deviceContext->VSSetConstantBuffers(0, 1, &constantBuffer);
                 d3d11.deviceContext->IASetVertexBuffers(0, 1, &vertexBuffer, stride, offset);
                 d3d11.deviceContext->IASetIndexBuffer(indexBuffer, DXGI_FORMAT_R32_UINT, 0);
                 d3d11.deviceContext->IASetInputLayout(inputLayout);
-                d3d11.deviceContext->PSSetShaderResources(0, 1, &shaderRes);
+                d3d11.deviceContext->PSSetShaderResources(0, 1, &renderGroup->shaderRes);
                 d3d11.deviceContext->PSSetSamplers(0, 1, &samplerState);
                 d3d11.deviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
