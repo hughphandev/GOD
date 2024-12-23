@@ -11,7 +11,10 @@ set Optimize=/0i /02 /fp:fast
 set ProjectDir=%CD%
 set TestDir=%ProjectDir%\tests
 set BuildDir=%ProjectDir%\build
+set BuildAssetDir=%BuildDir%\asset
+
 set SourceDir=%ProjectDir%\src
+set AssetDir=%ProjectDir%\asset
 set ShaderDir=%SourceDir%\shader
 set VendorInclude=%SourceDir%\vendor\include
 set VendorLibs=%SourceDir%\vendor\lib 
@@ -46,7 +49,14 @@ REM Platform code
 REM Test code
 	@REM cl %CFlags% /I%ProjectDir% /I%IncludeDir% /Fo:%ObjDir% /Fd:%ObjDir% %TestDir%\test.cpp /link %LDFlags% %LDLibs% /OUT:%BuildDir%\test.exe
 
-REM Copy Assets
-	xcopy /S /Q %ProjectDir%\assets\ %BuildDir%\assets\ /Y
+REM Build Assets
+	echo Build Assets
+
+	for %%f in (%AssetDir%\*.glb) do (
+		%BuildDir%\AssetPacker.exe %BuildAssetDir%\%%~nf.hza %%f
+	)
+
+REM Reload Dll
+	echo Reload Dll
 	xcopy /Q %BuildDir%\game_temp.dll %BuildDir%\game.dll /Y
 	del %BuildDir%\game_temp.dll
