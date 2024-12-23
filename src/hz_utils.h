@@ -3,6 +3,12 @@
 
 #include "hz_types.h"
 
+#define LAMBDA(return_type, function_body) \
+({ \
+      return_type __fn__ function_body \
+          __fn__; \
+})
+
 #define ARRAY_COUNT(array) (sizeof(array) / sizeof((array)[0]))
 
 #if SLOW
@@ -26,7 +32,7 @@ inline u32 SafeTruncateUInt64(u64 value)
 #define DEFINE_SWAP(T)  void Swap(T* l, T* r){ T temp = *l; *l = *r; *r = temp; }
 
 DEFINE_SWAP(f32)
-DEFINE_SWAP(i32)
+DEFINE_SWAP(s32)
 
 f32 Min(f32* value, int count)
 {
@@ -70,7 +76,7 @@ void ZeroSize(void* mem, size_t size)
   memset(mem, 0, size);
 }
 
-inline i32 StrToI(char* str, char** pStr)
+inline s32 StrToI(char* str, char** pStr)
 {
   int sign = 1;
   int result = 0;

@@ -8,7 +8,7 @@
 struct Entity
 {
     Transform transform;
-    LoadedModel model;
+    ModelInfo model;
 };
 
 struct ButtonState
@@ -17,12 +17,13 @@ struct ButtonState
     int halfTransitionCount;
 };
 
+#define MAX_BUTTON 8
 struct GameInput
 {
     // button
     union
     {
-        ButtonState buttons[8];
+        ButtonState buttons[MAX_BUTTON];
         struct
         {
             ButtonState up;
@@ -63,7 +64,9 @@ struct GameState
     bool running = true;
     char* tittle;
     int width, height;
-    LoadedModel testModel;
+
+    ModelInfo cubeModel;
+    ModelInfo sphereModel;
 
     GameMode gameMode;
 

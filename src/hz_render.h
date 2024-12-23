@@ -7,7 +7,8 @@
 
 struct Vert
 {
-    Vec3 pos;
+    Vec3 possition;
+    Vec3 normal;
     Vec2 uv;
 };
 
@@ -39,6 +40,12 @@ struct LoadedModel
     Texture texture;
 };
 
+struct ModelInfo
+{
+    s32 id;
+    Mat4 transform;
+};
+
 struct Transform
 {
     Vec3 position;
@@ -46,16 +53,19 @@ struct Transform
     Vec3 scale;
 };
 
+struct alignas(16) ConstantBuffer
+{
+    Mat4 mvp;
+    Color color;
+
+    Vec3 lightDirection;
+    Color diffuse;
+    Color ambient;
+};
+
 struct RenderGroup
 {
     MemoryArena pushBuffer;
-    void* defaultVertexShader;
-    u32 defaultVertexShaderSize;
-    void* defaultPixelShader;
-    u32 defaultPixelShaderSize;
-
-    //TODO: test code
-    ID3D11ShaderResourceView* shaderRes;
 };
 
 enum RenderCommandType
@@ -77,7 +87,7 @@ struct RenderCommandClear
 struct RenderCommandModel
 {
     Camera* camera;
-    LoadedModel* model;
+    ModelInfo model;
     Color color;
 };
 
@@ -107,7 +117,7 @@ void PushRenderClear(RenderGroup* renderGroup, Color color)
     command->color = color;
 }
 
-void PushRenderModel(RenderGroup* renderGroup, Camera* camera, LoadedModel* model, Color color)
+void PushRenderModel(RenderGroup* renderGroup, Camera* camera, ModelInfo model, Color color)
 {
     RenderCommandModel* command = PUSH_RENDER_ELEMENT(renderGroup, RenderCommandModel);
     command->camera = camera;

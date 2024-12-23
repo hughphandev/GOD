@@ -10,33 +10,7 @@ HPI void Init(GameState* state, RenderGroup* renderGroup, GameMemory* gameMemory
     state->width = 1280;
     state->height = 720;
 
-
-    File vsShaderFile = ReadFile("default_vertex.fxo", &gameMemory->persistantArena);
-    File psShaderFile = ReadFile("default_pixel.fxo", &gameMemory->persistantArena);
-    renderGroup->defaultVertexShader = vsShaderFile.content;
-    renderGroup->defaultVertexShaderSize = vsShaderFile.contentSize;
-    renderGroup->defaultPixelShader = psShaderFile.content;
-    renderGroup->defaultPixelShaderSize = psShaderFile.contentSize;
-
-    state->testModel.vertexCount = 3;
-    state->testModel.vertices = PUSH_ARRAY(&gameMemory->persistantArena, Vert, state->testModel.vertexCount);
-    state->testModel.indexCount = 3;
-    state->testModel.indices = PUSH_ARRAY(&gameMemory->persistantArena, u32, state->testModel.indexCount);
-
-    state->testModel = LoadAsset("asset\\obj.hza", &gameMemory->persistantArena).loadedModel;
-
-    state->testModel.transform =
-    { 1.0f, 0.0f, 0.0f, 0.0f,
-    0.0f, 1.0f, 0.0f, 0.0f,
-    0.0f, 0.0f, 1.0f, 0.0f,
-    0.0f, 0.0f, 0.0f, 1.0f };
-
-    // state->testModel.texture.width = 1;
-    // state->testModel.texture.height = 1;
-    // state->testModel.texture.texel = PUSH_ARRAY(&gameMemory->persistantArena, u32, state->testModel.texture.width * state->testModel.texture.height);
-    // *state->testModel.texture.texel = ToU32Color({ 1.0f, 0.0f, 0.0f, 1.0f });
-
-    state->camera.position = { 0, 0, -2 };
+    state->camera.position = { 0, 0, -5 };
     state->camera.direction = { 0, 0, 1 };
     state->camera.worldUp = { 0, 1, 0 };
     state->camera.fovy = 60.0f * DEG2RAD;
@@ -53,6 +27,7 @@ HPI void Update(GameState* state, RenderGroup* renderGroup, GameMemory* gameMemo
     if (state->input.f1.isDown && state->input.f1.halfTransitionCount > 0)
     {
         state->gameMode = (GameMode)(((int)state->gameMode + 1) % (int)GameMode::TERMINATOR);
+        OutputDebugString("F1");
     }
 
     switch (state->gameMode)
@@ -103,5 +78,5 @@ HPI void Update(GameState* state, RenderGroup* renderGroup, GameMemory* gameMemo
     }
 
     PushRenderClear(renderGroup, { 0.5f, 0.5f, 0.5f, 1.0f });
-    PushRenderModel(renderGroup, &state->camera, &state->testModel, { 1.0f, 1.0f, 1.0f, 1.0f });
+    PushRenderModel(renderGroup, &state->camera, state->sphereModel, { 1.0f, 1.0f, 1.0f, 1.0f });
 }

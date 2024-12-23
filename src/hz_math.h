@@ -25,12 +25,12 @@ struct Vec2
 
 struct Vec2I
 {
-  i32 x, y;
+  s32 x, y;
 };
 
 struct Vec3I
 {
-  i32 x, y, z;
+  s32 x, y, z;
 };
 
 struct Vec3
@@ -204,9 +204,9 @@ inline f32 Clamp(f32 a, f32 min, f32 max)
   if (a > max) result = max;
   return result;
 }
-inline i32 Clamp(i32 a, i32 min, i32 max)
+inline s32 Clamp(s32 a, s32 min, s32 max)
 {
-  i32 result = a;
+  s32 result = a;
   if (a < min) result = min;
   if (a > max) result = max;
   return result;
@@ -232,7 +232,7 @@ inline Vec2 V2(f32 x, f32 y)
   return { x, y };
 }
 
-inline Vec2 V2(i32 x, i32 y)
+inline Vec2 V2(s32 x, s32 y)
 {
   return { (f32)x, (f32)y };
 }
@@ -848,11 +848,11 @@ inline Mat4 operator*(Mat4 a, Mat4 b)
 {
   Mat4 result = {};
 
-  for (i32 i = 0; i < 4; ++i)
+  for (s32 i = 0; i < 4; ++i)
   {
-    for (i32 j = 0; j < 4; ++j)
+    for (s32 j = 0; j < 4; ++j)
     {
-      for (i32 k = 0; k < 4; ++k)
+      for (s32 k = 0; k < 4; ++k)
       {
         result.e[i][j] += a.e[i][k] * b.e[k][j];
       }
@@ -868,7 +868,7 @@ inline Mat4 operator+(Mat4 a, Mat4 b)
   f32* e1 = (f32*)a.e;
   f32* e2 = (f32*)b.e;
 
-  for (i32 i = 0; i < 16; ++i)
+  for (s32 i = 0; i < 16; ++i)
   {
     e[i] = e1[i] + e2[i];
   }
@@ -882,7 +882,7 @@ inline Mat4 operator-(Mat4 a, Mat4 b)
   f32* e1 = (f32*)a.e;
   f32* e2 = (f32*)b.e;
 
-  for (i32 i = 0; i < 16; ++i)
+  for (s32 i = 0; i < 16; ++i)
   {
     e[i] = e1[i] - e2[i];
   }
@@ -895,7 +895,7 @@ inline Mat4 operator*(Mat4 a, f32 b)
   f32* e = (f32*)result.e;
   f32* e1 = (f32*)a.e;
 
-  for (i32 i = 0; i < 16; ++i)
+  for (s32 i = 0; i < 16; ++i)
   {
     e[i] = e1[i] * b;
   }
@@ -908,7 +908,7 @@ inline Mat4 operator*(f32 a, Mat4 b)
   f32* e = (f32*)result.e;
   f32* e2 = (f32*)b.e;
 
-  for (i32 i = 0; i < 16; ++i)
+  for (s32 i = 0; i < 16; ++i)
   {
     e[i] = a * e2[i];
   }
@@ -921,7 +921,7 @@ inline Mat4 operator/(Mat4 a, f32 b)
   f32* e = (f32*)result.e;
   f32* e1 = (f32*)a.e;
 
-  for (i32 i = 0; i < 16; ++i)
+  for (s32 i = 0; i < 16; ++i)
   {
     e[i] = e1[i] / b;
   }
@@ -932,7 +932,7 @@ inline Mat4 operator+(Mat4 a, f32 b)
 {
   Mat4 result = a;
 
-  for (i32 i = 0; i < 4; ++i)
+  for (s32 i = 0; i < 4; ++i)
   {
     result.e[i][i] += b;
   }
@@ -943,7 +943,7 @@ inline Mat4 operator-(Mat4 a, f32 b)
 {
   Mat4 result = a;
 
-  for (i32 i = 0; i < 16; ++i)
+  for (s32 i = 0; i < 16; ++i)
   {
     result.e[i][i] -= b;
   }
@@ -1047,7 +1047,7 @@ inline Mat4Inverse Inverse(Mat4 a)
 {
   Mat4Inverse result = {};
   f32 inv[16];
-  i32 i;
+  s32 i;
   f32* m = (f32*)a.e;
 
   inv[0] = m[5] * m[10] * m[15] -
