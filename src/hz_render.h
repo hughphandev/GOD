@@ -58,9 +58,9 @@ struct alignas(16) ConstantBuffer
     Mat4 mvp;
     Color color;
 
-    Vec3 lightDirection;
     Color diffuse;
     Color ambient;
+    Vec3 lightDirection;
 };
 
 struct RenderGroup
@@ -88,7 +88,11 @@ struct RenderCommandModel
 {
     Camera* camera;
     ModelInfo model;
+    // Vec3 position;
+    // Quaternion rotation;
+    // Vec3 scale;
     Color color;
+    Mat4 transform;
 };
 
 
@@ -117,13 +121,13 @@ void PushRenderClear(RenderGroup* renderGroup, Color color)
     command->color = color;
 }
 
-void PushRenderModel(RenderGroup* renderGroup, Camera* camera, ModelInfo model, Color color)
+void PushRenderModel(RenderGroup* renderGroup, Camera* camera, ModelInfo model, Color color, Mat4 transform)
 {
     RenderCommandModel* command = PUSH_RENDER_ELEMENT(renderGroup, RenderCommandModel);
     command->camera = camera;
     command->model = model;
     command->color = color;
+    command->transform = transform;
 }
-
 
 #endif

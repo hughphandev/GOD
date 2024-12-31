@@ -1013,7 +1013,18 @@ Mat4 GetPerspectiveProjection(f32 fov, f32 aspect, f32 nPlane, f32 fPlane) {
   return result;
 }
 
-Mat4 Transpose(Mat4 mat) {
+inline Mat4 TRS(Vec3 position, Quaternion rotation, Vec3 scale)
+{
+  Mat4 result = { {
+        {scale.x, 0, 0, position.x},
+        {0, scale.y, 0, position.y},
+        {0, 0, scale.x, position.z},
+        {0, 0, 0, 1},
+    } };
+  return result;
+}
+
+inline Mat4 Transpose(Mat4 mat) {
   Mat4 result = {
       {
           {mat.e[0][0], mat.e[1][0], mat.e[2][0], mat.e[3][0]},

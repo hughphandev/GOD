@@ -1,3 +1,4 @@
+#define _CRT_SECURE_NO_DEPRECATE
 #include <stdio.h>
 #include <stdlib.h>
 #include "hz_asset_format.h"
@@ -11,9 +12,10 @@
 
 int main(int argc, char const* argv[])
 {
-    printf("Packing %s -> %s", argv[2], argv[1]);
+    printf("Packing %s -> %s\n", argv[2], argv[1]);
     const struct aiScene* scene = aiImportFile(argv[2],
                                                aiProcess_CalcTangentSpace |
+                                               aiProcess_MakeLeftHanded |
                                                aiProcess_Triangulate |
                                                aiProcess_FlipUVs |
                                                aiProcess_JoinIdenticalVertices |
@@ -73,6 +75,6 @@ int main(int argc, char const* argv[])
         printf("Can't open output file!");
     }
 
-    printf("Packing completed");
+    printf("Packing completed\n");
     return 0;
 }

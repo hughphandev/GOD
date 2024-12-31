@@ -32,6 +32,7 @@ struct Win32D3D11
     ID3D11Device* device;
     ID3D11DeviceContext* deviceContext;
     ID3D11RenderTargetView* renderTargetView;
+    ID3D11DepthStencilView* depthStencilView;
 
 
     //TODO: test code
@@ -113,6 +114,7 @@ static ModelInfo Win32LoadModel(Win32D3D11* d3d11, LoadedModel initialModel)
     }
 
     Win32Model* win32Model = &d3d11->models[result.id];
+    win32Model->isValid = true;
     win32Model->indexCount = initialModel.indexCount;
     result.transform = initialModel.transform;
 
@@ -207,8 +209,8 @@ static void Win32InitScene(GameState* gameState, RenderGroup* renderGroup, Win32
 {
 
     DXGI_SWAP_CHAIN_DESC swapChainDesc = {};
-    swapChainDesc.BufferDesc.Width = 0;
-    swapChainDesc.BufferDesc.Height = 0;
+    swapChainDesc.BufferDesc.Width = gameState->width;
+    swapChainDesc.BufferDesc.Height = gameState->height;
     swapChainDesc.BufferDesc.RefreshRate.Numerator = 0;
     swapChainDesc.BufferDesc.RefreshRate.Denominator = 0;
     swapChainDesc.BufferDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
@@ -240,6 +242,80 @@ static void Win32InitScene(GameState* gameState, RenderGroup* renderGroup, Win32
             ASSERT(false);
         }
 
+        D3D11_DEPTH_STENCIL_DESC depthStencilDesc = {};
+        depthStencilDesc.DepthEnable = true;
+        depthStencilDesc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
+        depthStencilDesc.DepthFunc = D3D11_COMPARISON_LESS_EQUAL;
+        // depthStencilDesc.StencilEnable = false;
+        // depthStencilDesc.StencilReadMask = 0xFF;
+        // depthStencilDesc.StencilWriteMask = 0xFF;
+        // depthStencilDesc.FrontFace.StencilFailOp = D3D11_STENCIL_OP_KEEP;
+        // depthStencilDesc.FrontFace.StencilDepthFailOp = D3D11_STENCIL_OP_INCR;
+        // depthStencilDesc.FrontFace.StencilPassOp = D3D11_STENCIL_OP_KEEP;
+        // depthStencilDesc.FrontFace.StencilFunc = D3D11_COMPARISON_ALWAYS;
+        // depthStencilDesc.BackFace.StencilFailOp = D3D11_STENCIL_OP_KEEP;
+        // depthStencilDesc.BackFace.StencilDepthFailOp = D3D11_STENCIL_OP_DECR;
+        // depthStencilDesc.BackFace.StencilPassOp = D3D11_STENCIL_OP_KEEP;
+        // depthStencilDesc.BackFace.StencilFunc = D3D11_COMPARISON_ALWAYS;
+        ID3D11DepthStencilState* depthStencilState;
+        d3d11->device->CreateDepthStencilState(&depthStencilDesc, &depthStencilState);
+
+        ID3D11RasterizerState* rasterizerState;
+        {
+            D3D11_RASTERIZER_DESC rasterizerDesc = {};
+            rasterizerDesc.FillMode = D3D11_FILL_SOLID;
+            rasterizerDesc.CullMode = D3D11_CULL_BACK;
+            rasterizerDesc.FrontCounterClockwise = true;
+            rasterizerDesc.DepthBiasClamp = 0;
+            rasterizerDesc.DepthClipEnable = true;
+            rasterizerDesc.AntialiasedLineEnable = false;
+            rasterizerDesc.MultisampleEnable = false;
+            rasterizerDesc.ScissorEnable = false;
+            rasterizerDesc.SlopeScaledDepthBias = 0.0f;
+            rasterizerDesc.DepthBias = 0;
+
+            d3d11->device->CreateRasterizerState(&rasterizerDesc, &rasterizerState);
+        }
+
+        d3d11->deviceContext->RSSetState(rasterizerState);
+        d3d11->deviceContext->OMSetDepthStencilState(depthStencilState, 0);
+
+        D3D11_TEXTURE2D_DESC depthTextureDesc = {};
+        depthTextureDesc.Width = gameState->width;
+        depthTextureDesc.Height = gameState->height;
+        depthTextureDesc.MipLevels = 1;
+        depthTextureDesc.ArraySize = 1;
+        depthTextureDesc.SampleDesc.Count = 1;
+        depthTextureDesc.SampleDesc.Quality = 0;
+        depthTextureDesc.Format = DXGI_FORMAT_D32_FLOAT;
+        depthTextureDesc.Usage = D3D11_USAGE_DEFAULT;
+        depthTextureDesc.BindFlags = D3D11_BIND_DEPTH_STENCIL;
+
+        ID3D11Texture2D* depthStencilTexture;
+        result = d3d11->device->CreateTexture2D(&depthTextureDesc, NULL, &depthStencilTexture);
+
+        if (result != S_OK)
+        {
+            ASSERT(false);
+            //TODO: Logging
+        }
+
+        D3D11_DEPTH_STENCIL_VIEW_DESC dsvDesc = {};
+        dsvDesc.Format = depthTextureDesc.Format;
+        dsvDesc.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
+        dsvDesc.Texture2D.MipSlice = 0;
+
+        result = d3d11->device->CreateDepthStencilView(depthStencilTexture, NULL, &d3d11->depthStencilView);
+        depthStencilTexture->Release();
+
+        if (result != S_OK)
+        {
+            ASSERT(false);
+            //TODO: Logging
+        }
+
+        d3d11->deviceContext->OMSetRenderTargets(1, &d3d11->renderTargetView, d3d11->depthStencilView);
+
         D3D11_VIEWPORT viewPort = {};
         viewPort.TopLeftX = 0;
         viewPort.TopLeftY = 0;
@@ -247,7 +323,6 @@ static void Win32InitScene(GameState* gameState, RenderGroup* renderGroup, Win32
         viewPort.Height = (FLOAT)gameState->height;
         viewPort.MinDepth = 0;
         viewPort.MaxDepth = 1;
-
 
         File vsShaderFile = ReadFile("default_vertex.fxo", &gameMemory->persistantArena);
         File psShaderFile = ReadFile("default_pixel.fxo", &gameMemory->persistantArena);
@@ -280,7 +355,7 @@ static void Win32RenderOutput(RenderGroup* renderGroup, Win32D3D11 d3d11)
                 RenderCommandClear* entry = (RenderCommandClear*)base;
 
                 d3d11.deviceContext->ClearRenderTargetView(d3d11.renderTargetView, entry->color.e);
-                d3d11.deviceContext->OMSetRenderTargets(1, &d3d11.renderTargetView, 0);
+                d3d11.deviceContext->ClearDepthStencilView(d3d11.depthStencilView, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0);
 
                 base = (u8*)base + sizeof(*entry);
             } break;
@@ -296,7 +371,8 @@ static void Win32RenderOutput(RenderGroup* renderGroup, Win32D3D11 d3d11)
                 d3d11.deviceContext->Map(model.cBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &subRes);
 
                 ConstantBuffer* cbuffer = (ConstantBuffer*)subRes.pData;
-                cbuffer->mvp = GetPerspectiveProjection(entry->camera->fovy, entry->camera->aspect, 1.0f, 100.0f) * GetViewMatrix(entry->camera->position, entry->camera->direction, entry->camera->worldUp) * entry->model.transform;
+                Mat4 worldTransform = entry->model.transform * entry->transform;
+                cbuffer->mvp = GetPerspectiveProjection(entry->camera->fovy, entry->camera->aspect, 1.0f, 100.0f) * GetViewMatrix(entry->camera->position, entry->camera->direction, entry->camera->worldUp) * worldTransform;
                 cbuffer->color = entry->color;
 
                 cbuffer->lightDirection = Normalize(Vec3{ -1, -1, 1 });
@@ -315,8 +391,8 @@ static void Win32RenderOutput(RenderGroup* renderGroup, Win32D3D11 d3d11)
                 d3d11.deviceContext->PSSetShaderResources(0, 1, &model.shaderRes);
                 d3d11.deviceContext->PSSetSamplers(0, 1, &model.samplerState);
                 d3d11.deviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+                d3d11.deviceContext->OMSetRenderTargets(1, &d3d11.renderTargetView, d3d11.depthStencilView);
 
-                d3d11.deviceContext->OMSetRenderTargets(1, &d3d11.renderTargetView, 0);
                 d3d11.deviceContext->DrawIndexed(model.indexCount, 0, 0);
 
                 base = (u8*)base + sizeof(*entry);
