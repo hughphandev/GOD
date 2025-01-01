@@ -17,9 +17,11 @@ struct Win32Model
     ID3D11Buffer* vertexBuffer;
     ID3D11Buffer* indexBuffer;
     ID3D11ShaderResourceView* shaderRes;
-    ID3D11Buffer* cBuffer;
     ID3D11InputLayout* inputLayout;
     ID3D11SamplerState* samplerState;
+
+    ID3D11Buffer* vsPerInstance;
+    ID3D11Buffer* psPerInstance;
 
     UINT stride[1];
     UINT offset[1];
@@ -38,6 +40,12 @@ struct Win32D3D11
     //TODO: test code
 #define MAX_MODEL_COUNT 256
     Win32Model models[MAX_MODEL_COUNT];
+
+    ID3D11Buffer* vsPerFrame;
+    ID3D11Buffer* psPerFrame;
+
+    ID3D11Buffer* vsPerScene;
+    ID3D11Buffer* psPerScene;
 
     ID3D11VertexShader* vertexShader;
     ID3D11PixelShader* pixelShader;
@@ -94,6 +102,20 @@ void Win32ReloadGameCode(Win32GameCode* gameCode)
             lastEditTimeTimeStampDll = currentEditTimeStampDll;
         }
     }
+}
+
+static void D3d11InitConstantBuffer(Win32D3D11* d3d11, void* data, UINT size, ID3D11Buffer** buffer)
+{
+    D3D11_BUFFER_DESC constBufferDesc = {};
+    constBufferDesc.ByteWidth = size;
+    constBufferDesc.Usage = D3D11_USAGE_DYNAMIC;
+    constBufferDesc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+    constBufferDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+    constBufferDesc.MiscFlags = 0;
+    constBufferDesc.StructureByteStride = 0;
+    D3D11_SUBRESOURCE_DATA constResDesc = {};
+    constResDesc.pSysMem = data;
+    d3d11->device->CreateBuffer(&constBufferDesc, &constResDesc, buffer);
 }
 
 static ModelInfo Win32LoadModel(Win32D3D11* d3d11, LoadedModel initialModel)
@@ -177,18 +199,12 @@ static ModelInfo Win32LoadModel(Win32D3D11* d3d11, LoadedModel initialModel)
     samplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
     d3d11->device->CreateSamplerState(&samplerDesc, &win32Model->samplerState);
 
-    ConstantBuffer cbuffer = {};
-    D3D11_BUFFER_DESC constBufferDesc = {};
-    constBufferDesc.ByteWidth = sizeof(cbuffer);
-    constBufferDesc.Usage = D3D11_USAGE_DYNAMIC;
-    constBufferDesc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
-    constBufferDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
-    constBufferDesc.MiscFlags = 0;
-    constBufferDesc.StructureByteStride = 0;
-    D3D11_SUBRESOURCE_DATA constResDesc = {};
-    constResDesc.pSysMem = &cbuffer;
-    d3d11->device->CreateBuffer(&constBufferDesc, &constResDesc, &win32Model->cBuffer);
 
+    VSPerInstance vsPerInstance = {};
+    D3d11InitConstantBuffer(d3d11, &vsPerInstance, sizeof(VSPerInstance), &win32Model->vsPerInstance);
+
+    PSPerInstance psPerInstance = {};
+    D3d11InitConstantBuffer(d3d11, &psPerInstance, sizeof(PSPerInstance), &win32Model->psPerInstance);
 
 
     D3D11_INPUT_ELEMENT_DESC layoutDesc[] =
@@ -324,8 +340,20 @@ static void Win32InitScene(GameState* gameState, RenderGroup* renderGroup, Win32
         viewPort.MinDepth = 0;
         viewPort.MaxDepth = 1;
 
-        File vsShaderFile = ReadFile("default_vertex.fxo", &gameMemory->persistantArena);
-        File psShaderFile = ReadFile("default_pixel.fxo", &gameMemory->persistantArena);
+        VSPerFrame vsPerFrame = {};
+        D3d11InitConstantBuffer(d3d11, &vsPerFrame, sizeof(VSPerFrame), &d3d11->vsPerFrame);
+
+        PSPerFrame psPerFrame = {};
+        D3d11InitConstantBuffer(d3d11, &psPerFrame, sizeof(PSPerFrame), &d3d11->psPerFrame);
+
+        VSPerScene vsPerScene = {};
+        D3d11InitConstantBuffer(d3d11, &vsPerScene, sizeof(VSPerScene), &d3d11->vsPerScene);
+
+        PSPerScene psPerScene = {};
+        D3d11InitConstantBuffer(d3d11, &psPerScene, sizeof(PSPerScene), &d3d11->psPerScene);
+
+        File vsShaderFile = ReadFile("default_vs.fxo", &gameMemory->persistantArena);
+        File psShaderFile = ReadFile("default_ps.fxo", &gameMemory->persistantArena);
         d3d11->defaultVertexShader = vsShaderFile.content;
         d3d11->defaultVertexShaderSize = vsShaderFile.contentSize;
         d3d11->defaultPixelShader = psShaderFile.content;
@@ -333,6 +361,9 @@ static void Win32InitScene(GameState* gameState, RenderGroup* renderGroup, Win32
 
         d3d11->device->CreateVertexShader(d3d11->defaultVertexShader, d3d11->defaultVertexShaderSize, 0, &d3d11->vertexShader);
         d3d11->device->CreatePixelShader(d3d11->defaultPixelShader, d3d11->defaultPixelShaderSize, 0, &d3d11->pixelShader);
+
+        d3d11->deviceContext->VSSetConstantBuffers(2, 1, &d3d11->vsPerScene);
+        d3d11->deviceContext->PSSetConstantBuffers(2, 1, &d3d11->psPerScene);
 
         d3d11->deviceContext->RSSetViewports(1, &viewPort);
 
@@ -344,6 +375,26 @@ static void Win32InitScene(GameState* gameState, RenderGroup* renderGroup, Win32
 
 static void Win32RenderOutput(RenderGroup* renderGroup, Win32D3D11 d3d11)
 {
+    {
+        D3D11_MAPPED_SUBRESOURCE subRes;
+
+        d3d11.deviceContext->Map(d3d11.vsPerFrame, 0, D3D11_MAP_WRITE_DISCARD, 0, &subRes);
+
+        VSPerFrame* vsPerFrame = (VSPerFrame*)subRes.pData;
+        d3d11.deviceContext->Unmap(d3d11.vsPerFrame, 0);
+        d3d11.deviceContext->VSSetConstantBuffers(1, 1, &d3d11.vsPerFrame);
+    }
+
+    {
+        D3D11_MAPPED_SUBRESOURCE subRes;
+        d3d11.deviceContext->Map(d3d11.psPerFrame, 0, D3D11_MAP_WRITE_DISCARD, 0, &subRes);
+
+        PSPerFrame* psPerFrame = (PSPerFrame*)subRes.pData;
+        psPerFrame->lightDirection = Normalize(Vec3{ -1, -1, 1 });
+        d3d11.deviceContext->Unmap(d3d11.psPerFrame, 0);
+        d3d11.deviceContext->PSSetConstantBuffers(1, 1, &d3d11.psPerFrame);
+    }
+
     for (void* base = renderGroup->pushBuffer.base; base < (u8*)renderGroup->pushBuffer.base + renderGroup->pushBuffer.used;)
     {
         RenderCommandHeader* header = (RenderCommandHeader*)base;
@@ -366,25 +417,33 @@ static void Win32RenderOutput(RenderGroup* renderGroup, Win32D3D11 d3d11)
 
                 Win32Model model = d3d11.models[entry->model.id];
 
-                D3D11_MAPPED_SUBRESOURCE subRes;
+                {
+                    D3D11_MAPPED_SUBRESOURCE subRes;
 
-                d3d11.deviceContext->Map(model.cBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &subRes);
+                    d3d11.deviceContext->Map(model.vsPerInstance, 0, D3D11_MAP_WRITE_DISCARD, 0, &subRes);
 
-                ConstantBuffer* cbuffer = (ConstantBuffer*)subRes.pData;
-                Mat4 worldTransform = entry->model.transform * entry->transform;
-                cbuffer->mvp = GetPerspectiveProjection(entry->camera->fovy, entry->camera->aspect, 1.0f, 100.0f) * GetViewMatrix(entry->camera->position, entry->camera->direction, entry->camera->worldUp) * worldTransform;
-                cbuffer->color = entry->color;
+                    VSPerInstance* vsPerInstance = (VSPerInstance*)subRes.pData;
+                    Mat4 worldTransform = entry->model.transform * entry->transform;
+                    vsPerInstance->mvp = GetPerspectiveProjection(entry->camera->fovy, entry->camera->aspect, 1.0f, 100.0f) * GetViewMatrix(entry->camera->position, entry->camera->direction, entry->camera->worldUp) * worldTransform;
+                    d3d11.deviceContext->Unmap(model.vsPerInstance, 0);
+                }
 
-                cbuffer->lightDirection = Normalize(Vec3{ -1, -1, 1 });
-                cbuffer->diffuse = { 1, 1, 1, 1 };
-                cbuffer->ambient = { 0.1, 0.1, 0.1, 0.1 };
+                {
+                    D3D11_MAPPED_SUBRESOURCE subRes;
+                    d3d11.deviceContext->Map(model.psPerInstance, 0, D3D11_MAP_WRITE_DISCARD, 0, &subRes);
 
-                d3d11.deviceContext->Unmap(model.cBuffer, 0);
+                    PSPerInstance* psPerInstance = (PSPerInstance*)subRes.pData;
+                    psPerInstance->color = entry->color;
+                    psPerInstance->diffuse = { 1, 1, 1, 1 };
+                    psPerInstance->ambient = { 0.1, 0.1, 0.1, 0.1 };
+
+                    d3d11.deviceContext->Unmap(model.psPerInstance, 0);
+                }
 
                 d3d11.deviceContext->VSSetShader(d3d11.vertexShader, 0, 0);
                 d3d11.deviceContext->PSSetShader(d3d11.pixelShader, 0, 0);
-                d3d11.deviceContext->VSSetConstantBuffers(0, 1, &model.cBuffer);
-                d3d11.deviceContext->PSSetConstantBuffers(0, 1, &model.cBuffer);
+                d3d11.deviceContext->VSSetConstantBuffers(0, 1, &model.vsPerInstance);
+                d3d11.deviceContext->PSSetConstantBuffers(0, 1, &model.psPerInstance);
                 d3d11.deviceContext->IASetVertexBuffers(0, 1, &model.vertexBuffer, model.stride, model.offset);
                 d3d11.deviceContext->IASetIndexBuffer(model.indexBuffer, DXGI_FORMAT_R32_UINT, 0);
                 d3d11.deviceContext->IASetInputLayout(model.inputLayout);

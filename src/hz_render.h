@@ -53,15 +53,39 @@ struct Transform
     Vec3 scale;
 };
 
-struct alignas(16) ConstantBuffer
+
+struct alignas(16) VSPerInstance
 {
     Mat4 mvp;
-    Color color;
+};
 
+struct alignas(16) VSPerFrame
+{
+
+};
+
+struct alignas(16) VSPerScene
+{
+
+};
+
+struct alignas(16) PSPerInstance
+{
+    Color color;
     Color diffuse;
     Color ambient;
+};
+
+struct alignas(16) PSPerFrame
+{
     Vec3 lightDirection;
 };
+
+struct alignas(16) PSPerScene
+{
+
+};
+
 
 struct RenderGroup
 {

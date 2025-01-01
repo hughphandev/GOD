@@ -33,8 +33,8 @@ REM Clean up
    del %BuildDir%\*.pdb
 
 REM Compile Shader
-	fxc /Od /Zi /T vs_5_0 /E:vs_main /Fo %BuildDir%\default_vertex.fxo %ShaderDir%\default.hlsl
-	fxc /Od /Zi /T ps_5_0 /E:ps_main /Fo %BuildDir%\default_pixel.fxo %ShaderDir%\default.hlsl
+	fxc /Od /Zi /T vs_5_0 /E:vs_main /Fo %BuildDir%\default_vs.fxo %ShaderDir%\default_vs.hlsl
+	fxc /Od /Zi /T ps_5_0 /E:ps_main /Fo %BuildDir%\default_ps.fxo %ShaderDir%\default_ps.hlsl
 
 REM Asset Packer code
 	cl %CFlags% /I%VendorInclude% /Fo:%ObjDir% /Fd:%ObjDir% %AssetPackerFile% /link %LDFlags% %LDLibs% assimp-vc143-mt.lib /LIBPATH:%VendorLibs% /OUT:%BuildDir%\AssetPacker.exe 
