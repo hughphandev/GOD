@@ -78,7 +78,10 @@ struct GameState
     Camera camera;
     //TODO: maybe introduce double buffering if necessary!
     GameInput input;
+
     GameAPI api;
+
+    float dt;
 };
 
 

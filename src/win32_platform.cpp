@@ -1,13 +1,18 @@
 #define WIN32_LEAN_AND_MEAN
+
+//TODO: consider remove crt
+#define _CRT_SECURE_NO_WARNINGS
+
 #include <windows.h>
 #include <windowsx.h>
 #include <d3d11.h>
 #include <d3dcompiler.h>
 #include <directxmath.h>
+#include <timeapi.h>
 
 #include <sys/stat.h> 
-#include "hz_math.h"
 #include "hz_utils.h"
+#include "hz_math.h"
 #include "hz_render.h"
 #include "game.h"
 
@@ -464,6 +469,20 @@ static void Win32RenderOutput(RenderGroup* renderGroup, Win32D3D11 d3d11)
     d3d11.swapChain->Present(0, 0);
 }
 
+inline static u64 Win32GetPerfCounter()
+{
+    LARGE_INTEGER result;
+    QueryPerformanceCounter(&result);
+    return result.QuadPart;
+}
+
+inline static u64 Win32GetPerfFrequency()
+{
+    LARGE_INTEGER result;
+    QueryPerformanceFrequency(&result);
+    return result.QuadPart;
+}
+
 LRESULT Win32WindowProc(HWND windowHandle, UINT message, WPARAM wParam, LPARAM lParam)
 {
     LRESULT result = 0;
@@ -646,6 +665,7 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prevInstance, PSTR cmdLine, int
     //  windowClass.hIcon;
     windowClass.lpszClassName = gameState->tittle;
 
+    u64 perfFrequency = Win32GetPerfFrequency();
 
     if (RegisterClassEx(&windowClass))
     {
@@ -663,6 +683,9 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prevInstance, PSTR cmdLine, int
             rawInputDevices[0].hwndTarget = windowHandle;
 
             RegisterRawInputDevices(rawInputDevices, 1, sizeof(RAWINPUTDEVICE));
+
+            bool timeIsGranular = timeBeginPeriod(1) == TIMERR_NOERROR;
+            u64 lastPerfCounter = Win32GetPerfCounter();
             while (gameState->running)
             {
                 Win32ReloadGameCode(&gameCode);
@@ -678,6 +701,27 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prevInstance, PSTR cmdLine, int
                 ShowCursor(gameState->showCursor);
 
                 Win32RenderOutput(renderGroup, d3d11);
+
+                f32 elapsed = (f32)(Win32GetPerfCounter() - lastPerfCounter) / perfFrequency;
+
+                if (elapsed < gameState->dt)
+                {
+                    if (timeIsGranular)
+                    {
+                        Sleep((DWORD)((gameState->dt - elapsed) * 1000));
+                    }
+                    while (elapsed < gameState->dt)
+                    {
+                        elapsed = (f32)(Win32GetPerfCounter() - lastPerfCounter) / perfFrequency;
+                    }
+                }
+                else
+                {
+                    //TODO: Missed framerate!
+                    LOGWARNING("Missed");
+                }
+                LOGINFO("%.2fms\n", elapsed * 1000);
+                lastPerfCounter = Win32GetPerfCounter();
             }
 
             CloseWindow(windowHandle);

@@ -117,4 +117,18 @@ inline char* SkipUntil(char* c, char until)
   while (*c != until) ++c;
   return c;
 }
+
+#include <stdio.h>
+
+#ifdef DEBUG
+#define LOGINFO(string, ...) fprintf(stdout, string, __VA_ARGS__);
+#define LOGWARNING(string, ...) fprintf(stdout, string, __VA_ARGS__);
+#define LOGERROR(string, ...) fprintf(stderr, string, __VA_ARGS__);
+#elif
+#define LOGINFO(string, ...)
+#define LOGWARNING(string, ...) 
+#define LOGERROR(string, ...) 
+#endif
+
+
 #endif

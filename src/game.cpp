@@ -20,6 +20,8 @@ HPI void Init(GameState* state, RenderGroup* renderGroup, GameMemory* gameMemory
 
     state->pitch = 0;
     state->yaw = 90;
+
+    state->dt = 1 / 60.0f;
 }
 
 HPI void Update(GameState* state, RenderGroup* renderGroup, GameMemory* gameMemory)
@@ -52,19 +54,19 @@ HPI void Update(GameState* state, RenderGroup* renderGroup, GameMemory* gameMemo
 
             if (state->input.up.isDown)
             {
-                state->camera.position += 0.01f * state->camera.direction;
+                state->camera.position += state->dt * state->camera.direction;
             }
             if (state->input.down.isDown)
             {
-                state->camera.position -= 0.01f * state->camera.direction;
+                state->camera.position -= state->dt * state->camera.direction;
             }
             if (state->input.left.isDown)
             {
-                state->camera.position -= 0.01f * Normalize(Cross(state->camera.worldUp, state->camera.direction));
+                state->camera.position -= state->dt * Normalize(Cross(state->camera.worldUp, state->camera.direction));
             }
             if (state->input.right.isDown)
             {
-                state->camera.position += 0.01f * Normalize(Cross(state->camera.worldUp, state->camera.direction));
+                state->camera.position += state->dt * Normalize(Cross(state->camera.worldUp, state->camera.direction));
             }
         }break;
 
