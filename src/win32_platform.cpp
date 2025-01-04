@@ -1,8 +1,5 @@
 #define WIN32_LEAN_AND_MEAN
 
-//TODO: consider remove crt
-#define _CRT_SECURE_NO_WARNINGS
-
 #include <windows.h>
 #include <windowsx.h>
 #include <d3d11.h>
@@ -16,9 +13,10 @@
 #include "hz_render.h"
 #include "game.h"
 
-struct Win32Model
+struct Win32Mesh
 {
     bool isValid;
+    Mat4 transform;
     ID3D11Buffer* vertexBuffer;
     ID3D11Buffer* indexBuffer;
     ID3D11ShaderResourceView* shaderRes;
@@ -31,6 +29,13 @@ struct Win32Model
     UINT stride[1];
     UINT offset[1];
     UINT indexCount;
+};
+
+struct Win32Model
+{
+    bool isValid;
+    Win32Mesh* meshes;
+    u32 meshCount;
 };
 
 struct Win32D3D11
@@ -123,7 +128,94 @@ static void D3d11InitConstantBuffer(Win32D3D11* d3d11, void* data, UINT size, ID
     d3d11->device->CreateBuffer(&constBufferDesc, &constResDesc, buffer);
 }
 
-static ModelInfo Win32LoadModel(Win32D3D11* d3d11, LoadedModel initialModel)
+static Win32Mesh Win32LoadMesh(Win32D3D11* d3d11, LoadedMesh initialMesh)
+{
+    Win32Mesh result = {};
+    result.indexCount = initialMesh.indexCount;
+    result.transform = initialMesh.transform;
+
+    D3D11_TEXTURE2D_DESC textureDesc = {};
+    textureDesc.Width = initialMesh.texture.width;
+    textureDesc.Height = initialMesh.texture.height;
+    textureDesc.MipLevels = 1;
+    textureDesc.ArraySize = 1;
+    textureDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+    textureDesc.SampleDesc.Count = 1;
+    textureDesc.SampleDesc.Quality = 0;
+    textureDesc.Usage = D3D11_USAGE_IMMUTABLE;
+    textureDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+    textureDesc.CPUAccessFlags = 0;
+    textureDesc.MiscFlags = 0;
+
+    D3D11_SUBRESOURCE_DATA initData = {};
+    initData.pSysMem = initialMesh.texture.texel;
+    initData.SysMemPitch = sizeof(*initialMesh.texture.texel) * initialMesh.texture.width;
+    initData.SysMemSlicePitch = sizeof(*initialMesh.texture.texel) * initialMesh.texture.width * initialMesh.texture.height;
+
+    ID3D11Texture2D* tex = nullptr;
+    d3d11->device->CreateTexture2D(&textureDesc, &initData, &tex);
+
+    D3D11_SHADER_RESOURCE_VIEW_DESC resDesc;
+    resDesc.Format = textureDesc.Format;
+    resDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+    resDesc.Texture2D.MostDetailedMip = 0;
+    resDesc.Texture2D.MipLevels = 1;
+    d3d11->device->CreateShaderResourceView(tex, &resDesc, &result.shaderRes);
+
+    D3D11_BUFFER_DESC vertexBufferDesc = {};
+    vertexBufferDesc.ByteWidth = sizeof(*initialMesh.vertices) * initialMesh.vertexCount;
+    vertexBufferDesc.Usage = D3D11_USAGE_DEFAULT;
+    vertexBufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+    vertexBufferDesc.CPUAccessFlags = 0;
+    vertexBufferDesc.MiscFlags = 0;
+    vertexBufferDesc.StructureByteStride = sizeof(*initialMesh.vertices);
+    D3D11_SUBRESOURCE_DATA vertexResDesc = {};
+    vertexResDesc.pSysMem = initialMesh.vertices;
+    d3d11->device->CreateBuffer(&vertexBufferDesc, &vertexResDesc, &result.vertexBuffer);
+
+
+    D3D11_BUFFER_DESC indexBufferDesc = {};
+    indexBufferDesc.ByteWidth = sizeof(*initialMesh.indices) * initialMesh.indexCount;
+    indexBufferDesc.Usage = D3D11_USAGE_DEFAULT;
+    indexBufferDesc.BindFlags = D3D11_BIND_INDEX_BUFFER;
+    indexBufferDesc.CPUAccessFlags = 0;
+    indexBufferDesc.MiscFlags = 0;
+    indexBufferDesc.StructureByteStride = sizeof(*initialMesh.indices);
+    D3D11_SUBRESOURCE_DATA indexResDesc = {};
+    indexResDesc.pSysMem = initialMesh.indices;
+    d3d11->device->CreateBuffer(&indexBufferDesc, &indexResDesc, &result.indexBuffer);
+
+
+    D3D11_SAMPLER_DESC samplerDesc = {};
+    samplerDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
+    samplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
+    samplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
+    samplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
+    d3d11->device->CreateSamplerState(&samplerDesc, &result.samplerState);
+
+
+    VSPerInstance vsPerInstance = {};
+    D3d11InitConstantBuffer(d3d11, &vsPerInstance, sizeof(VSPerInstance), &result.vsPerInstance);
+
+    PSPerInstance psPerInstance = {};
+    D3d11InitConstantBuffer(d3d11, &psPerInstance, sizeof(PSPerInstance), &result.psPerInstance);
+
+
+    D3D11_INPUT_ELEMENT_DESC layoutDesc[] =
+    {
+        {"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0},
+        {"NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, sizeof(Vec3), D3D11_INPUT_PER_VERTEX_DATA, 0},
+        {"TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, sizeof(Vec3) + sizeof(Vec3), D3D11_INPUT_PER_VERTEX_DATA, 0},
+        // {"TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, sizeof(Vec3), D3D11_INPUT_PER_VERTEX_DATA, 0},
+    };
+    d3d11->device->CreateInputLayout(layoutDesc, ARRAY_COUNT(layoutDesc), d3d11->defaultVertexShader, d3d11->defaultVertexShaderSize, &result.inputLayout);
+
+    result.stride[0] = sizeof(*initialMesh.vertices);
+    result.offset[0] = 0;
+    return result;
+}
+
+static ModelInfo Win32LoadModel(Win32D3D11* d3d11, LoadedModel initialModel, MemoryArena* arena)
 {
     ModelInfo result = {};
 
@@ -142,87 +234,13 @@ static ModelInfo Win32LoadModel(Win32D3D11* d3d11, LoadedModel initialModel)
 
     Win32Model* win32Model = &d3d11->models[result.id];
     win32Model->isValid = true;
-    win32Model->indexCount = initialModel.indexCount;
-    result.transform = initialModel.transform;
 
-    D3D11_TEXTURE2D_DESC textureDesc = {};
-    textureDesc.Width = initialModel.texture.width;
-    textureDesc.Height = initialModel.texture.height;
-    textureDesc.MipLevels = 1;
-    textureDesc.ArraySize = 1;
-    textureDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-    textureDesc.SampleDesc.Count = 1;
-    textureDesc.SampleDesc.Quality = 0;
-    textureDesc.Usage = D3D11_USAGE_IMMUTABLE;
-    textureDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
-    textureDesc.CPUAccessFlags = 0;
-    textureDesc.MiscFlags = 0;
-
-    D3D11_SUBRESOURCE_DATA initData = {};
-    initData.pSysMem = initialModel.texture.texel;
-    initData.SysMemPitch = sizeof(*initialModel.texture.texel) * initialModel.texture.width;
-    initData.SysMemSlicePitch = sizeof(*initialModel.texture.texel) * initialModel.texture.width * initialModel.texture.height;
-
-    ID3D11Texture2D* tex = nullptr;
-    d3d11->device->CreateTexture2D(&textureDesc, &initData, &tex);
-
-    D3D11_SHADER_RESOURCE_VIEW_DESC resDesc;
-    resDesc.Format = textureDesc.Format;
-    resDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
-    resDesc.Texture2D.MostDetailedMip = 0;
-    resDesc.Texture2D.MipLevels = 1;
-    d3d11->device->CreateShaderResourceView(tex, &resDesc, &win32Model->shaderRes);
-
-    D3D11_BUFFER_DESC vertexBufferDesc = {};
-    vertexBufferDesc.ByteWidth = sizeof(*initialModel.vertices) * initialModel.vertexCount;
-    vertexBufferDesc.Usage = D3D11_USAGE_DEFAULT;
-    vertexBufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
-    vertexBufferDesc.CPUAccessFlags = 0;
-    vertexBufferDesc.MiscFlags = 0;
-    vertexBufferDesc.StructureByteStride = sizeof(*initialModel.vertices);
-    D3D11_SUBRESOURCE_DATA vertexResDesc = {};
-    vertexResDesc.pSysMem = initialModel.vertices;
-    d3d11->device->CreateBuffer(&vertexBufferDesc, &vertexResDesc, &win32Model->vertexBuffer);
-
-
-    D3D11_BUFFER_DESC indexBufferDesc = {};
-    indexBufferDesc.ByteWidth = sizeof(*initialModel.indices) * initialModel.indexCount;
-    indexBufferDesc.Usage = D3D11_USAGE_DEFAULT;
-    indexBufferDesc.BindFlags = D3D11_BIND_INDEX_BUFFER;
-    indexBufferDesc.CPUAccessFlags = 0;
-    indexBufferDesc.MiscFlags = 0;
-    indexBufferDesc.StructureByteStride = sizeof(*initialModel.indices);
-    D3D11_SUBRESOURCE_DATA indexResDesc = {};
-    indexResDesc.pSysMem = initialModel.indices;
-    d3d11->device->CreateBuffer(&indexBufferDesc, &indexResDesc, &win32Model->indexBuffer);
-
-
-    D3D11_SAMPLER_DESC samplerDesc = {};
-    samplerDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
-    samplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
-    samplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
-    samplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
-    d3d11->device->CreateSamplerState(&samplerDesc, &win32Model->samplerState);
-
-
-    VSPerInstance vsPerInstance = {};
-    D3d11InitConstantBuffer(d3d11, &vsPerInstance, sizeof(VSPerInstance), &win32Model->vsPerInstance);
-
-    PSPerInstance psPerInstance = {};
-    D3d11InitConstantBuffer(d3d11, &psPerInstance, sizeof(PSPerInstance), &win32Model->psPerInstance);
-
-
-    D3D11_INPUT_ELEMENT_DESC layoutDesc[] =
+    win32Model->meshCount = initialModel.meshCount;
+    win32Model->meshes = PUSH_ARRAY(arena, Win32Mesh, initialModel.meshCount);
+    for (u32 i = 0; i < initialModel.meshCount; ++i)
     {
-        {"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0},
-        {"NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, sizeof(Vec3), D3D11_INPUT_PER_VERTEX_DATA, 0},
-        {"TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, sizeof(Vec3) + sizeof(Vec3), D3D11_INPUT_PER_VERTEX_DATA, 0},
-        // {"TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, sizeof(Vec3), D3D11_INPUT_PER_VERTEX_DATA, 0},
-    };
-    d3d11->device->CreateInputLayout(layoutDesc, ARRAY_COUNT(layoutDesc), d3d11->defaultVertexShader, d3d11->defaultVertexShaderSize, &win32Model->inputLayout);
-
-    win32Model->stride[0] = sizeof(*initialModel.vertices);
-    win32Model->offset[0] = 0;
+        win32Model->meshes[i] = Win32LoadMesh(d3d11, initialModel.meshes[i]);
+    }
     return result;
 }
 
@@ -373,8 +391,9 @@ static void Win32InitScene(GameState* gameState, RenderGroup* renderGroup, Win32
         d3d11->deviceContext->RSSetViewports(1, &viewPort);
 
         //TODO: refactor to game code
-        gameState->cubeModel = Win32LoadModel(d3d11, LoadAsset("asset\\cube.hza", &gameMemory->transientArena).loadedModel);
-        gameState->sphereModel = Win32LoadModel(d3d11, LoadAsset("asset\\sphere.hza", &gameMemory->transientArena).loadedModel);
+        gameState->cubeModel = Win32LoadModel(d3d11, LoadAsset("asset\\cube.hza", &gameMemory->transientArena).loadedModel, &gameMemory->persistantArena);
+        gameState->sphereModel = Win32LoadModel(d3d11, LoadAsset("asset\\sphere.hza", &gameMemory->transientArena).loadedModel, &gameMemory->persistantArena);
+        gameState->spidyModel = Win32LoadModel(d3d11, LoadAsset("asset\\ghost-spider.hza", &gameMemory->transientArena).loadedModel, &gameMemory->persistantArena);
     }
 }
 
@@ -421,44 +440,46 @@ static void Win32RenderOutput(RenderGroup* renderGroup, Win32D3D11 d3d11)
                 RenderCommandModel* entry = (RenderCommandModel*)base;
 
                 Win32Model model = d3d11.models[entry->model.id];
-
+                for (u32 i = 0; i < model.meshCount; ++i)
                 {
-                    D3D11_MAPPED_SUBRESOURCE subRes;
+                    {
+                        D3D11_MAPPED_SUBRESOURCE subRes;
 
-                    d3d11.deviceContext->Map(model.vsPerInstance, 0, D3D11_MAP_WRITE_DISCARD, 0, &subRes);
+                        d3d11.deviceContext->Map(model.meshes[i].vsPerInstance, 0, D3D11_MAP_WRITE_DISCARD, 0, &subRes);
 
-                    VSPerInstance* vsPerInstance = (VSPerInstance*)subRes.pData;
-                    Mat4 worldTransform = entry->model.transform * entry->transform;
-                    vsPerInstance->mvp = GetPerspectiveProjection(entry->camera->fovy, entry->camera->aspect, 1.0f, 100.0f) * GetViewMatrix(entry->camera->position, entry->camera->direction, entry->camera->worldUp) * worldTransform;
-                    d3d11.deviceContext->Unmap(model.vsPerInstance, 0);
+                        VSPerInstance* vsPerInstance = (VSPerInstance*)subRes.pData;
+                        Mat4 worldTransform = model.meshes[i].transform * entry->transform;
+                        vsPerInstance->mvp = GetPerspectiveProjection(entry->camera->fovy, entry->camera->aspect, 0.1f, 100.0f) * GetViewMatrix(entry->camera->position, entry->camera->direction, entry->camera->worldUp) * worldTransform;
+                        d3d11.deviceContext->Unmap(model.meshes[i].vsPerInstance, 0);
+                    }
+
+                    {
+                        D3D11_MAPPED_SUBRESOURCE subRes;
+                        d3d11.deviceContext->Map(model.meshes[i].psPerInstance, 0, D3D11_MAP_WRITE_DISCARD, 0, &subRes);
+
+                        PSPerInstance* psPerInstance = (PSPerInstance*)subRes.pData;
+                        psPerInstance->color = entry->color;
+                        psPerInstance->diffuse = { 1, 1, 1, 1 };
+                        psPerInstance->ambient = { 0.1, 0.1, 0.1, 0.1 };
+
+                        d3d11.deviceContext->Unmap(model.meshes[i].psPerInstance, 0);
+                    }
+
+                    d3d11.deviceContext->VSSetShader(d3d11.vertexShader, 0, 0);
+                    d3d11.deviceContext->PSSetShader(d3d11.pixelShader, 0, 0);
+                    d3d11.deviceContext->VSSetConstantBuffers(0, 1, &model.meshes[i].vsPerInstance);
+                    d3d11.deviceContext->PSSetConstantBuffers(0, 1, &model.meshes[i].psPerInstance);
+                    d3d11.deviceContext->IASetVertexBuffers(0, 1, &model.meshes[i].vertexBuffer, model.meshes[i].stride, model.meshes[i].offset);
+                    d3d11.deviceContext->IASetIndexBuffer(model.meshes[i].indexBuffer, DXGI_FORMAT_R32_UINT, 0);
+                    d3d11.deviceContext->IASetInputLayout(model.meshes[i].inputLayout);
+                    d3d11.deviceContext->PSSetShaderResources(0, 1, &model.meshes[i].shaderRes);
+                    d3d11.deviceContext->PSSetSamplers(0, 1, &model.meshes[i].samplerState);
+                    d3d11.deviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+                    d3d11.deviceContext->OMSetRenderTargets(1, &d3d11.renderTargetView, d3d11.depthStencilView);
+
+                    d3d11.deviceContext->DrawIndexed(model.meshes[i].indexCount, 0, 0);
+
                 }
-
-                {
-                    D3D11_MAPPED_SUBRESOURCE subRes;
-                    d3d11.deviceContext->Map(model.psPerInstance, 0, D3D11_MAP_WRITE_DISCARD, 0, &subRes);
-
-                    PSPerInstance* psPerInstance = (PSPerInstance*)subRes.pData;
-                    psPerInstance->color = entry->color;
-                    psPerInstance->diffuse = { 1, 1, 1, 1 };
-                    psPerInstance->ambient = { 0.1, 0.1, 0.1, 0.1 };
-
-                    d3d11.deviceContext->Unmap(model.psPerInstance, 0);
-                }
-
-                d3d11.deviceContext->VSSetShader(d3d11.vertexShader, 0, 0);
-                d3d11.deviceContext->PSSetShader(d3d11.pixelShader, 0, 0);
-                d3d11.deviceContext->VSSetConstantBuffers(0, 1, &model.vsPerInstance);
-                d3d11.deviceContext->PSSetConstantBuffers(0, 1, &model.psPerInstance);
-                d3d11.deviceContext->IASetVertexBuffers(0, 1, &model.vertexBuffer, model.stride, model.offset);
-                d3d11.deviceContext->IASetIndexBuffer(model.indexBuffer, DXGI_FORMAT_R32_UINT, 0);
-                d3d11.deviceContext->IASetInputLayout(model.inputLayout);
-                d3d11.deviceContext->PSSetShaderResources(0, 1, &model.shaderRes);
-                d3d11.deviceContext->PSSetSamplers(0, 1, &model.samplerState);
-                d3d11.deviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-                d3d11.deviceContext->OMSetRenderTargets(1, &d3d11.renderTargetView, d3d11.depthStencilView);
-
-                d3d11.deviceContext->DrawIndexed(model.indexCount, 0, 0);
-
                 base = (u8*)base + sizeof(*entry);
             } break;
 

@@ -84,7 +84,7 @@ HPI void Update(GameState* state, RenderGroup* renderGroup, GameMemory* gameMemo
     {
         for (int j = 0; j < 10; j++)
         {
-            PushRenderModel(renderGroup, &state->camera, state->sphereModel, { 1.0f, 1.0f, 1.0f, 1.0f }, TRS({ (float)i, 0, (float)j }, {}, { 0.5f, 0.5f, 0.5f }));
+            PushRenderModel(renderGroup, &state->camera, state->cubeModel, { 1.0f, 1.0f, 1.0f, 1.0f }, TRS({ (float)i, 0, (float)j }, {}, { 1, 1, 1 }));
         }
     }
 }

@@ -11,15 +11,22 @@ enum class AssetType
     Texture,
 };
 
+struct Asset
+{
+    AssetType type;
+
+    union
+    {
+        LoadedModel loadedModel;
+    };
+
+};
+
 struct AssetHeader
 {
     u32 magicNumber;
     u32 version;
 
-    AssetType type;
-    union
-    {
-        LoadedModel loadedModel;
-    };
+    Asset asset;
 };
 #endif

@@ -112,10 +112,51 @@ inline char* Skip(char* c, char skip)
   while (*c == skip) ++c;
   return c;
 }
+
 inline char* SkipUntil(char* c, char until)
 {
   while (*c != until) ++c;
   return c;
+}
+
+inline int FindFirstIndex(char* c, char target, int len)
+{
+  for (int i = 0; i < len; ++i)
+  {
+    if (c[i] == target) return i;
+  }
+  return -1;
+}
+
+inline int FindLastIndex(char* c, char target, int len)
+{
+  int result = -1;
+  for (int i = 0; i < len; ++i)
+  {
+    if (c[i] == target) result = i;
+  }
+  return result;
+}
+
+inline int FindLastIndex(char* c, char target)
+{
+  int result = -1;
+  size_t len = strlen(c);
+  for (size_t i = 0; i < len; ++i)
+  {
+    if (c[i] == target) result = (int)i;
+  }
+  return result;
+}
+
+inline char* Copy(char* des, char* src)
+{
+  return strcpy(des, src);
+}
+
+inline char* Copy(char* des, char* src, int count)
+{
+  return strncpy(des, src, count);
 }
 
 #include <stdio.h>

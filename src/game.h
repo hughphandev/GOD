@@ -67,6 +67,7 @@ struct GameState
 
     ModelInfo cubeModel;
     ModelInfo sphereModel;
+    ModelInfo spidyModel;
 
     GameMode gameMode;
 

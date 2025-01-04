@@ -4,31 +4,27 @@
 #include "hz_asset_format.h"
 #include "hz_io.h"
 
-struct Asset
-{
-    AssetType type;
-
-    union
-    {
-        LoadedModel loadedModel;
-    };
-
-};
 
 Asset LoadAsset(char* fileName, MemoryArena* arena)
 {
     File file = ReadFile(fileName, arena);
     AssetHeader* header = (AssetHeader*)file.content;
     Asset result = {};
-    result.type = header->type;
-    switch (header->type)
+    result.type = header->asset.type;
+    switch (header->asset.type)
     {
         case AssetType::Model:
         {
-            result.loadedModel = header->loadedModel;
-            result.loadedModel.vertices = (Vert*)((char*)file.content + (u64)header->loadedModel.vertices);
-            result.loadedModel.indices = (u32*)((char*)file.content + (u64)header->loadedModel.indices);
-            result.loadedModel.texture.texel = (u32*)((char*)file.content + (u64)header->loadedModel.texture.texel);
+            result = header->asset;
+            result.loadedModel.meshes = (LoadedMesh*)((u8*)file.content + (u64)header->asset.loadedModel.meshes);
+            for (u32 i = 0; i < header->asset.loadedModel.meshCount; ++i)
+            {
+                LoadedMesh mesh = result.loadedModel.meshes[i];
+                mesh.vertices = (Vert*)((char*)file.content + (u64)mesh.vertices);
+                mesh.indices = (u32*)((char*)file.content + (u64)mesh.indices);
+                mesh.texture.texel = (u32*)((char*)file.content + (u64)mesh.texture.texel);
+                result.loadedModel.meshes[i] = mesh;
+            }
         }
         break;
 

@@ -1,4 +1,3 @@
-#define _CRT_SECURE_NO_DEPRECATE
 #include <stdio.h>
 #include <stdlib.h>
 #include "hz_asset_format.h"
@@ -15,9 +14,10 @@ int main(int argc, char const* argv[])
     printf("Packing %s -> %s\n", argv[2], argv[1]);
     const struct aiScene* scene = aiImportFile(argv[2],
                                                aiProcess_CalcTangentSpace |
+                                               aiProcess_GenSmoothNormals |
                                                aiProcess_MakeLeftHanded |
-                                               aiProcess_Triangulate |
                                                aiProcess_FlipUVs |
+                                               aiProcess_Triangulate |
                                                aiProcess_JoinIdenticalVertices |
                                                aiProcess_SortByPType);
     if (NULL == scene) {
@@ -26,48 +26,97 @@ int main(int argc, char const* argv[])
         return false;
     }
 
-    int x, y, comp, req_comp = 4;
-    stbi_uc* texel = stbi_load_from_memory((stbi_uc*)scene->mTextures[0]->pcData, scene->mTextures[0]->mWidth, &x, &y, &comp, req_comp);
+    char fullPath[256];
+    int count = FindLastIndex((char*)argv[2], '\\') + 1;
+    Copy(fullPath, (char*)argv[2], count);
+    fullPath[count] = '\0';
 
     AssetHeader header = {};
     header.magicNumber = U32CODE('h', 'z', 'a', 'f');
     header.version = 0;
-    header.type = AssetType::Model;
+    header.asset.type = AssetType::Model;
 
-    header.loadedModel.vertexCount = scene->mMeshes[0]->mNumVertices;
-    header.loadedModel.indexCount = scene->mMeshes[0]->mNumFaces * 3;
-
-    header.loadedModel.texture.width = x;
-    header.loadedModel.texture.height = y;
-
-    header.loadedModel.vertices = (Vert*)sizeof(header);
-    header.loadedModel.indices = (u32*)((char*)header.loadedModel.vertices + header.loadedModel.vertexCount * sizeof(Vert));
-    header.loadedModel.texture.texel = (u32*)((char*)header.loadedModel.indices + header.loadedModel.indexCount * sizeof(u32));
-
-    Memcpy(&header.loadedModel.transform, &scene->mRootNode[0].mTransformation, sizeof(Mat4));
+    header.asset.loadedModel.meshCount = scene->mNumMeshes;
 
     FILE* out = fopen(argv[1], "wb");
     if (out)
     {
+        header.asset.loadedModel.meshes = (LoadedMesh*)sizeof(header);
         fwrite(&header, sizeof(header), 1, out);
-        for (u32 i = 0; i < header.loadedModel.vertexCount; ++i)
-        {
-            Vert vert = {};
-            vert.possition = { scene->mMeshes[0]->mVertices[i].x, scene->mMeshes[0]->mVertices[i].y, scene->mMeshes[0]->mVertices[i].z };
-            vert.normal = { scene->mMeshes[0]->mNormals[i].x, scene->mMeshes[0]->mNormals[i].y, scene->mMeshes[0]->mNormals[i].z };
-            vert.uv = { scene->mMeshes[0]->mTextureCoords[0][i].x, scene->mMeshes[0]->mTextureCoords[0][i].y };
-            fwrite(&vert, sizeof(vert), 1, out);
-        }
 
-        for (u32 i = 0; i < scene->mMeshes[0]->mNumFaces; ++i)
+        Texture* textures = (Texture*)malloc(sizeof(textures) * scene->mNumTextures);
+        for (u32 i = 0; i < scene->mNumMaterials; ++i)
         {
-            for (u32 j = 0; j < scene->mMeshes[0]->mFaces[i].mNumIndices; ++j)
+            aiMaterial* aiMaterial = scene->mMaterials[i];
+            if (aiMaterial->GetTextureCount(aiTextureType_DIFFUSE) > 0)
             {
-                u32 index = scene->mMeshes[0]->mFaces[i].mIndices[j];
-                fwrite(&index, sizeof(index), 1, out);
+                aiString path;
+                if (aiGetMaterialTexture(aiMaterial, aiTextureType_DIFFUSE, 0, &path) == AI_SUCCESS)
+                {
+                    int x, y, comp, req_comp = 4;
+                    stbi_uc* texel;
+                    if (path.C_Str()[0] == '*')
+                    {
+                        const aiTexture* aiTex = scene->GetEmbeddedTexture(path.C_Str());
+                        texel = stbi_load_from_memory((stbi_uc*)aiTex->pcData, aiTex->mWidth, &x, &y, &comp, req_comp);
+                    }
+                    else
+                    {
+                        texel = stbi_load(strcat(fullPath, path.C_Str()), &x, &y, &comp, req_comp);
+                    }
+                    textures[i].width = x;
+                    textures[i].height = y;
+                    textures[i].texel = (u32*)texel;
+                }
             }
         }
-        fwrite(texel, sizeof(stbi_uc) * req_comp, header.loadedModel.texture.width * header.loadedModel.texture.height, out);
+
+        void* base = (u8*)(sizeof(header) + sizeof(LoadedMesh) * scene->mNumMeshes);
+        for (u32 meshIndex = 0; meshIndex < scene->mNumMeshes; ++meshIndex)
+        {
+            LoadedMesh mesh = {};
+            mesh.vertexCount = scene->mMeshes[meshIndex]->mNumVertices;
+            mesh.indexCount = scene->mMeshes[meshIndex]->mNumFaces * 3;
+            Memcpy(&mesh.transform, &scene->mRootNode[meshIndex].mTransformation, sizeof(Mat4));
+
+            mesh.vertices = (Vert*)base;
+            base = (u8*)base + scene->mMeshes[meshIndex]->mNumVertices * sizeof(Vert);
+
+            mesh.indices = (u32*)base;
+            base = (u8*)base + scene->mMeshes[meshIndex]->mNumFaces * 3 * sizeof(u32);
+
+            mesh.texture.width = (u32)textures[meshIndex].width;
+            mesh.texture.height = (u32)textures[meshIndex].height;
+            mesh.texture.texel = (u32*)(base);
+            base = (u8*)base + textures[meshIndex].width * textures[meshIndex].height * sizeof(u32);
+
+            fwrite(&mesh, sizeof(mesh), 1, out);
+        }
+
+        for (u32 meshIndex = 0; meshIndex < scene->mNumMeshes; ++meshIndex)
+        {
+            for (u32 i = 0; i < scene->mMeshes[meshIndex]->mNumVertices; ++i)
+            {
+                Vert vert = {};
+                vert.possition = { scene->mMeshes[meshIndex]->mVertices[i].x, scene->mMeshes[meshIndex]->mVertices[i].y, scene->mMeshes[meshIndex]->mVertices[i].z };
+                vert.normal = { scene->mMeshes[meshIndex]->mNormals[i].x, scene->mMeshes[meshIndex]->mNormals[i].y, scene->mMeshes[meshIndex]->mNormals[i].z };
+                vert.uv = { scene->mMeshes[meshIndex]->mTextureCoords[meshIndex][i].x, scene->mMeshes[meshIndex]->mTextureCoords[meshIndex][i].y };
+                fwrite(&vert, sizeof(vert), 1, out);
+            }
+
+            for (u32 i = 0; i < scene->mMeshes[meshIndex]->mNumFaces; ++i)
+            {
+                for (u32 j = 0; j < scene->mMeshes[meshIndex]->mFaces[i].mNumIndices; ++j)
+                {
+                    u32 index = scene->mMeshes[meshIndex]->mFaces[i].mIndices[j];
+                    fwrite(&index, sizeof(index), 1, out);
+                }
+            }
+
+            Texture texture = textures[scene->mMeshes[meshIndex]->mMaterialIndex];
+            fwrite(texture.texel, sizeof(u32), texture.width * texture.height, out);
+        }
+
         fclose(out);
     }
     else

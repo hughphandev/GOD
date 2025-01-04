@@ -1,5 +1,5 @@
 @echo off
-set CFlags=-DDEBUG -DSLOW=1 -W4 -MT -wd4100 -wd4189 -wd4201 -wd4505 -wd4838 -wd4324 -nologo -Oi -Od -fp:fast -GR- -Gm- -Z7 -EHa 
+set CFlags=-DDEBUG -DSLOW=1 -D_CRT_SECURE_NO_WARNINGS -W4 -MT -wd4100 -wd4189 -wd4201 -wd4505 -wd4838 -wd4324 -nologo -Oi -Od -fp:fast -GR- -Gm- -Z7 -EHa 
 
 set LDLibs= gdi32.lib msvcrt.lib winmm.lib User32.lib D3D11.lib D3DCompiler.lib dxgi.lib
 
@@ -52,7 +52,7 @@ REM Test code
 REM Build Assets
 	echo Build Assets
 
-	for %%f in (%AssetDir%\*.glb) do (
+	for /R %AssetDir% %%f in (*.fbx) do (
 		%BuildDir%\AssetPacker.exe %BuildAssetDir%\%%~nf.hza %%f
 	)
 

@@ -28,7 +28,7 @@ struct Texture
     u32* texel;
 };
 
-struct LoadedModel
+struct LoadedMesh
 {
     Mat4 transform;
 
@@ -40,10 +40,15 @@ struct LoadedModel
     Texture texture;
 };
 
+struct LoadedModel
+{
+    LoadedMesh* meshes;
+    u32 meshCount;
+};
+
 struct ModelInfo
 {
     s32 id;
-    Mat4 transform;
 };
 
 struct Transform
