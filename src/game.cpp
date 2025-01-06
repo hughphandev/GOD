@@ -51,22 +51,23 @@ HPI void Update(GameState* state, RenderGroup* renderGroup, GameMemory* gameMemo
             direction.y = Sin(state->pitch * DEG2RAD);
             direction.z = Sin(state->yaw * DEG2RAD) * Cos(state->pitch * DEG2RAD);
             state->camera.direction = Normalize(direction);
+            float speed = 10;
 
             if (state->input.up.isDown)
             {
-                state->camera.position += state->dt * state->camera.direction;
+                state->camera.position += state->dt * state->camera.direction * speed;
             }
             if (state->input.down.isDown)
             {
-                state->camera.position -= state->dt * state->camera.direction;
+                state->camera.position -= state->dt * state->camera.direction * speed;
             }
             if (state->input.left.isDown)
             {
-                state->camera.position -= state->dt * Normalize(Cross(state->camera.worldUp, state->camera.direction));
+                state->camera.position -= state->dt * Normalize(Cross(state->camera.worldUp, state->camera.direction)) * speed;
             }
             if (state->input.right.isDown)
             {
-                state->camera.position += state->dt * Normalize(Cross(state->camera.worldUp, state->camera.direction));
+                state->camera.position += state->dt * Normalize(Cross(state->camera.worldUp, state->camera.direction)) * speed;
             }
         }break;
 

@@ -28,22 +28,41 @@ struct Texture
     u32* texel;
 };
 
+struct VertWeight
+{
+    u32 vertIndex;
+    f32 weight;
+};
+
+struct Bone
+{
+    u32 weightCount;
+    VertWeight* weights;
+    Mat4 offsetMatrix;
+};
+
 struct LoadedMesh
 {
     Mat4 transform;
 
-    Vert* vertices;
     u32 vertexCount;
-    u32* indices;
-    u32 indexCount;
+    Vert* vertices;
 
-    Texture texture;
+    u32 indexCount;
+    u32* indices;
+
+    u32 boneCount;
+    Bone* bones;
+
+    u32 matIndex;
 };
 
 struct LoadedModel
 {
-    LoadedMesh* meshes;
     u32 meshCount;
+    LoadedMesh* meshes;
+    u32 matCount;
+    Texture* mats;
 };
 
 struct ModelInfo

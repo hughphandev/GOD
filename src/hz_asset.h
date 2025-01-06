@@ -4,7 +4,6 @@
 #include "hz_asset_format.h"
 #include "hz_io.h"
 
-
 Asset LoadAsset(char* fileName, MemoryArena* arena)
 {
     File file = ReadFile(fileName, arena);
@@ -16,13 +15,18 @@ Asset LoadAsset(char* fileName, MemoryArena* arena)
         case AssetType::Model:
         {
             result = header->asset;
-            result.loadedModel.meshes = (LoadedMesh*)((u8*)file.content + (u64)header->asset.loadedModel.meshes);
+            result.loadedModel.meshes = (LoadedMesh*)((u64)file.content + (u64)header->asset.loadedModel.meshes);
+            result.loadedModel.mats = (Texture*)((u64)file.content + (u64)header->asset.loadedModel.mats);
+            for (u32 i = 0; i < result.loadedModel.matCount; ++i)
+            {
+                result.loadedModel.mats[i].texel = (u32*)((u64)file.content + (u64)result.loadedModel.mats[i].texel);
+            }
             for (u32 i = 0; i < header->asset.loadedModel.meshCount; ++i)
             {
                 LoadedMesh mesh = result.loadedModel.meshes[i];
-                mesh.vertices = (Vert*)((char*)file.content + (u64)mesh.vertices);
-                mesh.indices = (u32*)((char*)file.content + (u64)mesh.indices);
-                mesh.texture.texel = (u32*)((char*)file.content + (u64)mesh.texture.texel);
+                mesh.vertices = (Vert*)((u64)file.content + (u64)mesh.vertices);
+                mesh.indices = (u32*)((u64)file.content + (u64)mesh.indices);
+                mesh.bones = (Bone*)((u64)file.content + (u64)mesh.bones);
                 result.loadedModel.meshes[i] = mesh;
             }
         }

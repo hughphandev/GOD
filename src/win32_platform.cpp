@@ -19,9 +19,9 @@ struct Win32Mesh
     Mat4 transform;
     ID3D11Buffer* vertexBuffer;
     ID3D11Buffer* indexBuffer;
-    ID3D11ShaderResourceView* shaderRes;
     ID3D11InputLayout* inputLayout;
     ID3D11SamplerState* samplerState;
+    UINT shaderResIndex;
 
     ID3D11Buffer* vsPerInstance;
     ID3D11Buffer* psPerInstance;
@@ -34,8 +34,10 @@ struct Win32Mesh
 struct Win32Model
 {
     bool isValid;
-    Win32Mesh* meshes;
     u32 meshCount;
+    Win32Mesh* meshes;
+    u32 shaderResCount;
+    ID3D11ShaderResourceView** shaderRes;
 };
 
 struct Win32D3D11
@@ -133,34 +135,7 @@ static Win32Mesh Win32LoadMesh(Win32D3D11* d3d11, LoadedMesh initialMesh)
     Win32Mesh result = {};
     result.indexCount = initialMesh.indexCount;
     result.transform = initialMesh.transform;
-
-    D3D11_TEXTURE2D_DESC textureDesc = {};
-    textureDesc.Width = initialMesh.texture.width;
-    textureDesc.Height = initialMesh.texture.height;
-    textureDesc.MipLevels = 1;
-    textureDesc.ArraySize = 1;
-    textureDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-    textureDesc.SampleDesc.Count = 1;
-    textureDesc.SampleDesc.Quality = 0;
-    textureDesc.Usage = D3D11_USAGE_IMMUTABLE;
-    textureDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
-    textureDesc.CPUAccessFlags = 0;
-    textureDesc.MiscFlags = 0;
-
-    D3D11_SUBRESOURCE_DATA initData = {};
-    initData.pSysMem = initialMesh.texture.texel;
-    initData.SysMemPitch = sizeof(*initialMesh.texture.texel) * initialMesh.texture.width;
-    initData.SysMemSlicePitch = sizeof(*initialMesh.texture.texel) * initialMesh.texture.width * initialMesh.texture.height;
-
-    ID3D11Texture2D* tex = nullptr;
-    d3d11->device->CreateTexture2D(&textureDesc, &initData, &tex);
-
-    D3D11_SHADER_RESOURCE_VIEW_DESC resDesc;
-    resDesc.Format = textureDesc.Format;
-    resDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
-    resDesc.Texture2D.MostDetailedMip = 0;
-    resDesc.Texture2D.MipLevels = 1;
-    d3d11->device->CreateShaderResourceView(tex, &resDesc, &result.shaderRes);
+    result.shaderResIndex = initialMesh.matIndex;
 
     D3D11_BUFFER_DESC vertexBufferDesc = {};
     vertexBufferDesc.ByteWidth = sizeof(*initialMesh.vertices) * initialMesh.vertexCount;
@@ -237,6 +212,40 @@ static ModelInfo Win32LoadModel(Win32D3D11* d3d11, LoadedModel initialModel, Mem
 
     win32Model->meshCount = initialModel.meshCount;
     win32Model->meshes = PUSH_ARRAY(arena, Win32Mesh, initialModel.meshCount);
+
+    win32Model->shaderResCount = initialModel.matCount;
+    win32Model->shaderRes = PUSH_ARRAY(arena, ID3D11ShaderResourceView*, win32Model->shaderResCount);
+    for (u32 i = 0; i < initialModel.matCount; ++i)
+    {
+        D3D11_TEXTURE2D_DESC textureDesc = {};
+        textureDesc.Width = initialModel.mats[i].width;
+        textureDesc.Height = initialModel.mats[i].height;
+        textureDesc.MipLevels = 1;
+        textureDesc.ArraySize = 1;
+        textureDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+        textureDesc.SampleDesc.Count = 1;
+        textureDesc.SampleDesc.Quality = 0;
+        textureDesc.Usage = D3D11_USAGE_IMMUTABLE;
+        textureDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+        textureDesc.CPUAccessFlags = 0;
+        textureDesc.MiscFlags = 0;
+
+        D3D11_SUBRESOURCE_DATA initData = {};
+        initData.pSysMem = initialModel.mats[i].texel;
+        initData.SysMemPitch = sizeof(*initialModel.mats[i].texel) * initialModel.mats[i].width;
+        initData.SysMemSlicePitch = sizeof(*initialModel.mats[i].texel) * initialModel.mats[i].width * initialModel.mats[i].height;
+
+        ID3D11Texture2D* tex = nullptr;
+        d3d11->device->CreateTexture2D(&textureDesc, &initData, &tex);
+
+        D3D11_SHADER_RESOURCE_VIEW_DESC resDesc;
+        resDesc.Format = textureDesc.Format;
+        resDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+        resDesc.Texture2D.MostDetailedMip = 0;
+        resDesc.Texture2D.MipLevels = 1;
+        d3d11->device->CreateShaderResourceView(tex, &resDesc, &win32Model->shaderRes[i]);
+    }
+
     for (u32 i = 0; i < initialModel.meshCount; ++i)
     {
         win32Model->meshes[i] = Win32LoadMesh(d3d11, initialModel.meshes[i]);
@@ -472,7 +481,7 @@ static void Win32RenderOutput(RenderGroup* renderGroup, Win32D3D11 d3d11)
                     d3d11.deviceContext->IASetVertexBuffers(0, 1, &model.meshes[i].vertexBuffer, model.meshes[i].stride, model.meshes[i].offset);
                     d3d11.deviceContext->IASetIndexBuffer(model.meshes[i].indexBuffer, DXGI_FORMAT_R32_UINT, 0);
                     d3d11.deviceContext->IASetInputLayout(model.meshes[i].inputLayout);
-                    d3d11.deviceContext->PSSetShaderResources(0, 1, &model.meshes[i].shaderRes);
+                    d3d11.deviceContext->PSSetShaderResources(0, 1, &model.shaderRes[model.meshes[i].shaderResIndex]);
                     d3d11.deviceContext->PSSetSamplers(0, 1, &model.meshes[i].samplerState);
                     d3d11.deviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
                     d3d11.deviceContext->OMSetRenderTargets(1, &d3d11.renderTargetView, d3d11.depthStencilView);
