@@ -65,9 +65,9 @@ struct GameState
     char* tittle;
     int width, height;
 
-    ModelInfo cubeModel;
-    ModelInfo sphereModel;
-    ModelInfo spidyModel;
+    ModelInfo* cubeModel;
+    ModelInfo* sphereModel;
+    ModelInfo* spidyModel;
 
     GameMode gameMode;
 

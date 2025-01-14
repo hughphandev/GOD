@@ -52,7 +52,7 @@ REM Test code
 REM Build Assets
 	echo Build Assets
 
-	for /R %AssetDir% %%f in (*.fbx) do (
+	for /R %AssetDir% %%f in (*.fbx, *.glb) do (
 		%BuildDir%\AssetPacker.exe %BuildAssetDir%\%%~nf.hza %%f
 	)
 

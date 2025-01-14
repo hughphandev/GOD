@@ -10,15 +10,24 @@ cbuffer VSPerFrame : register(b1)
 
 }
 
+#define MAX_BONES 100
 cbuffer VSPerInstance : register(b0)
 {
   matrix mvp;
+  matrix bones[MAX_BONES];
 };
 
 VSOut vs_main(VSIn input) {
   VSOut output = (VSOut)0; // zero the memory first
-  output.position = mul(float4(input.position_local, 1.0), mvp);
+matrix boneTransform =
+    bones[input.boneIds[0]] * input.weights[0] +
+    bones[input.boneIds[1]] * input.weights[1] +
+    bones[input.boneIds[2]] * input.weights[2] +
+    bones[input.boneIds[3]] * input.weights[3] ; 
+  output.position = mul(mul(float4(input.positionLocal, 1.0), boneTransform), mvp);
   output.uv = input.uv;
   output.normal = input.normal;
+  output.boneIds = input.boneIds;
+  output.weights = input.weights;
   return output;
 }

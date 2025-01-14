@@ -81,11 +81,12 @@ HPI void Update(GameState* state, RenderGroup* renderGroup, GameMemory* gameMemo
     }
 
     PushRenderClear(renderGroup, { 0.5f, 0.5f, 0.5f, 1.0f });
-    for (int i = 0; i < 10; ++i)
-    {
-        for (int j = 0; j < 10; j++)
-        {
-            PushRenderModel(renderGroup, &state->camera, state->cubeModel, { 1.0f, 1.0f, 1.0f, 1.0f }, TRS({ (float)i, 0, (float)j }, {}, { 1, 1, 1 }));
-        }
-    }
+    // for (int i = 0; i < 10; ++i)
+    // {
+    //     for (int j = 0; j < 10; j++)
+    //     {
+    //         PushRenderModel(renderGroup, &state->camera, state->cubeModel, { 1.0f, 1.0f, 1.0f, 1.0f }, TRS({ (float)i, 0, (float)j }, {}, { 1, 1, 1 }));
+    //     }
+    // }
+    PushRenderModel(renderGroup, &state->camera, state->spidyModel, { 1.0f, 1.0f, 1.0f, 1.0f }, TRS({ (float)0, 0, (float)0 }, {}, { 1, 1, 1 }));
 }

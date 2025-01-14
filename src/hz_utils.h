@@ -20,6 +20,8 @@ inline u32 SafeTruncateUInt64(u64 value);
 
 #define INVALID_CODE_PATH ASSERT(!"Invalid code path!")
 #define INVALID_DEFAULT_CASE default:{ASSERT(!"Invalid code path!");} 
+#define INVALID_VALUE 0xffffffff
+
 
 inline u32 SafeTruncateUInt64(u64 value)
 {
@@ -119,28 +121,29 @@ inline char* SkipUntil(char* c, char until)
   return c;
 }
 
-inline int FindFirstIndex(char* c, char target, int len)
+template <typename T>
+inline int FindFirstIndex(T* c, T target, int len)
 {
   for (int i = 0; i < len; ++i)
   {
     if (c[i] == target) return i;
   }
-  return -1;
+  return INVALID_VALUE;
 }
 
-inline int FindLastIndex(char* c, char target, int len)
+template <typename T>
+inline int FindLastIndex(T* c, T target, int len)
 {
-  int result = -1;
-  for (int i = 0; i < len; ++i)
+  for (int i = len - 1; i >= 0; ++i)
   {
-    if (c[i] == target) result = i;
+    if (c[i] == target) return i;
   }
-  return result;
+  return INVALID_VALUE;
 }
 
 inline int FindLastIndex(char* c, char target)
 {
-  int result = -1;
+  int result = INVALID_VALUE;
   size_t len = strlen(c);
   for (size_t i = 0; i < len; ++i)
   {

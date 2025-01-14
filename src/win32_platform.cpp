@@ -178,9 +178,11 @@ static Win32Mesh Win32LoadMesh(Win32D3D11* d3d11, LoadedMesh initialMesh)
 
     D3D11_INPUT_ELEMENT_DESC layoutDesc[] =
     {
-        {"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0},
-        {"NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, sizeof(Vec3), D3D11_INPUT_PER_VERTEX_DATA, 0},
-        {"TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, sizeof(Vec3) + sizeof(Vec3), D3D11_INPUT_PER_VERTEX_DATA, 0},
+        {"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, offsetof(Vert, position), D3D11_INPUT_PER_VERTEX_DATA, 0},
+        {"NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, offsetof(Vert, normal), D3D11_INPUT_PER_VERTEX_DATA, 0},
+        {"TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, offsetof(Vert, uv), D3D11_INPUT_PER_VERTEX_DATA, 0},
+        {"BONE_IDS", 0, DXGI_FORMAT_R32G32B32A32_UINT, 0, offsetof(Vert, boneIds), D3D11_INPUT_PER_VERTEX_DATA, 0},
+        {"WEIGHTS", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, offsetof(Vert, weights), D3D11_INPUT_PER_VERTEX_DATA, 0},
         // {"TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, sizeof(Vec3), D3D11_INPUT_PER_VERTEX_DATA, 0},
     };
     d3d11->device->CreateInputLayout(layoutDesc, ARRAY_COUNT(layoutDesc), d3d11->defaultVertexShader, d3d11->defaultVertexShaderSize, &result.inputLayout);
@@ -190,24 +192,27 @@ static Win32Mesh Win32LoadMesh(Win32D3D11* d3d11, LoadedMesh initialMesh)
     return result;
 }
 
-static ModelInfo Win32LoadModel(Win32D3D11* d3d11, LoadedModel initialModel, MemoryArena* arena)
+static ModelInfo* Win32LoadModel(Win32D3D11* d3d11, LoadedModel initialModel, MemoryArena* arena)
 {
-    ModelInfo result = {};
+    ModelInfo* result = PUSH_TYPE(arena, ModelInfo);
+    result->boneCount = initialModel.boneCount;
+    result->bones = PUSH_ARRAY(arena, Bone, result->boneCount);
+    Memcpy(result->bones, initialModel.bones, sizeof(Bone) * result->boneCount);
 
     for (int i = 0; i < MAX_MODEL_COUNT; ++i)
     {
         if (!d3d11->models[i].isValid)
         {
-            result.id = i;
+            result->id = i;
             break;
         }
         else if (i == MAX_MODEL_COUNT - 1)
         {
-            result.id = -1;
+            result->id = -1;
         }
     }
 
-    Win32Model* win32Model = &d3d11->models[result.id];
+    Win32Model* win32Model = &d3d11->models[result->id];
     win32Model->isValid = true;
 
     win32Model->meshCount = initialModel.meshCount;
@@ -217,33 +222,36 @@ static ModelInfo Win32LoadModel(Win32D3D11* d3d11, LoadedModel initialModel, Mem
     win32Model->shaderRes = PUSH_ARRAY(arena, ID3D11ShaderResourceView*, win32Model->shaderResCount);
     for (u32 i = 0; i < initialModel.matCount; ++i)
     {
-        D3D11_TEXTURE2D_DESC textureDesc = {};
-        textureDesc.Width = initialModel.mats[i].width;
-        textureDesc.Height = initialModel.mats[i].height;
-        textureDesc.MipLevels = 1;
-        textureDesc.ArraySize = 1;
-        textureDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-        textureDesc.SampleDesc.Count = 1;
-        textureDesc.SampleDesc.Quality = 0;
-        textureDesc.Usage = D3D11_USAGE_IMMUTABLE;
-        textureDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
-        textureDesc.CPUAccessFlags = 0;
-        textureDesc.MiscFlags = 0;
+        if (initialModel.mats[i].width > 0 && initialModel.mats[i].height > 0)
+        {
+            D3D11_TEXTURE2D_DESC textureDesc = {};
+            textureDesc.Width = initialModel.mats[i].width;
+            textureDesc.Height = initialModel.mats[i].height;
+            textureDesc.MipLevels = 1;
+            textureDesc.ArraySize = 1;
+            textureDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+            textureDesc.SampleDesc.Count = 1;
+            textureDesc.SampleDesc.Quality = 0;
+            textureDesc.Usage = D3D11_USAGE_IMMUTABLE;
+            textureDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+            textureDesc.CPUAccessFlags = 0;
+            textureDesc.MiscFlags = 0;
 
-        D3D11_SUBRESOURCE_DATA initData = {};
-        initData.pSysMem = initialModel.mats[i].texel;
-        initData.SysMemPitch = sizeof(*initialModel.mats[i].texel) * initialModel.mats[i].width;
-        initData.SysMemSlicePitch = sizeof(*initialModel.mats[i].texel) * initialModel.mats[i].width * initialModel.mats[i].height;
+            D3D11_SUBRESOURCE_DATA initData = {};
+            initData.pSysMem = initialModel.mats[i].texel;
+            initData.SysMemPitch = sizeof(*initialModel.mats[i].texel) * initialModel.mats[i].width;
+            initData.SysMemSlicePitch = sizeof(*initialModel.mats[i].texel) * initialModel.mats[i].width * initialModel.mats[i].height;
 
-        ID3D11Texture2D* tex = nullptr;
-        d3d11->device->CreateTexture2D(&textureDesc, &initData, &tex);
+            ID3D11Texture2D* tex = nullptr;
+            d3d11->device->CreateTexture2D(&textureDesc, &initData, &tex);
 
-        D3D11_SHADER_RESOURCE_VIEW_DESC resDesc;
-        resDesc.Format = textureDesc.Format;
-        resDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
-        resDesc.Texture2D.MostDetailedMip = 0;
-        resDesc.Texture2D.MipLevels = 1;
-        d3d11->device->CreateShaderResourceView(tex, &resDesc, &win32Model->shaderRes[i]);
+            D3D11_SHADER_RESOURCE_VIEW_DESC resDesc;
+            resDesc.Format = textureDesc.Format;
+            resDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+            resDesc.Texture2D.MostDetailedMip = 0;
+            resDesc.Texture2D.MipLevels = 1;
+            d3d11->device->CreateShaderResourceView(tex, &resDesc, &win32Model->shaderRes[i]);
+        }
     }
 
     for (u32 i = 0; i < initialModel.meshCount; ++i)
@@ -402,7 +410,7 @@ static void Win32InitScene(GameState* gameState, RenderGroup* renderGroup, Win32
         //TODO: refactor to game code
         gameState->cubeModel = Win32LoadModel(d3d11, LoadAsset("asset\\cube.hza", &gameMemory->transientArena).loadedModel, &gameMemory->persistantArena);
         gameState->sphereModel = Win32LoadModel(d3d11, LoadAsset("asset\\sphere.hza", &gameMemory->transientArena).loadedModel, &gameMemory->persistantArena);
-        gameState->spidyModel = Win32LoadModel(d3d11, LoadAsset("asset\\ghost-spider.hza", &gameMemory->transientArena).loadedModel, &gameMemory->persistantArena);
+        gameState->spidyModel = Win32LoadModel(d3d11, LoadAsset("asset\\ghost-spider-glb.hza", &gameMemory->transientArena).loadedModel, &gameMemory->persistantArena);
     }
 }
 
@@ -448,7 +456,7 @@ static void Win32RenderOutput(RenderGroup* renderGroup, Win32D3D11 d3d11)
             {
                 RenderCommandModel* entry = (RenderCommandModel*)base;
 
-                Win32Model model = d3d11.models[entry->model.id];
+                Win32Model model = d3d11.models[entry->model->id];
                 for (u32 i = 0; i < model.meshCount; ++i)
                 {
                     {
@@ -459,6 +467,17 @@ static void Win32RenderOutput(RenderGroup* renderGroup, Win32D3D11 d3d11)
                         VSPerInstance* vsPerInstance = (VSPerInstance*)subRes.pData;
                         Mat4 worldTransform = model.meshes[i].transform * entry->transform;
                         vsPerInstance->mvp = GetPerspectiveProjection(entry->camera->fovy, entry->camera->aspect, 0.1f, 100.0f) * GetViewMatrix(entry->camera->position, entry->camera->direction, entry->camera->worldUp) * worldTransform;
+                        ZeroSize(vsPerInstance->bones, sizeof(vsPerInstance->bones));
+                        for (u32 boneIndex = 0; boneIndex < entry->model->boneCount; ++boneIndex)
+                        {
+                            Mat4 transform = entry->model->bones[boneIndex].offsetMatrix;
+
+                            for (int id = boneIndex; entry->model->bones[id].parentIndex != INVALID_VALUE; id = entry->model->bones[id].parentIndex)
+                            {
+                                transform = entry->model->bones[id].localMatrix * transform;
+                            }
+                            vsPerInstance->bones[boneIndex] = transform;
+                        }
                         d3d11.deviceContext->Unmap(model.meshes[i].vsPerInstance, 0);
                     }
 

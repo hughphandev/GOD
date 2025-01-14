@@ -5,11 +5,14 @@
 #include "hz_math.h"
 #include <d3d11.h>
 
+#define MAX_BONES_PER_VERT 4
 struct Vert
 {
-    Vec3 possition;
+    Vec3 position;
     Vec3 normal;
     Vec2 uv;
+    u32 boneIds[MAX_BONES_PER_VERT];
+    f32 weights[MAX_BONES_PER_VERT];
 };
 
 
@@ -34,11 +37,13 @@ struct VertWeight
     f32 weight;
 };
 
+#define MAX_CHILD_BONES 20
 struct Bone
 {
-    u32 weightCount;
-    VertWeight* weights;
     Mat4 offsetMatrix;
+    Mat4 localMatrix;
+    s32 parentIndex;
+    s32 childIndices[MAX_CHILD_BONES];
 };
 
 struct LoadedMesh
@@ -51,9 +56,6 @@ struct LoadedMesh
     u32 indexCount;
     u32* indices;
 
-    u32 boneCount;
-    Bone* bones;
-
     u32 matIndex;
 };
 
@@ -63,11 +65,15 @@ struct LoadedModel
     LoadedMesh* meshes;
     u32 matCount;
     Texture* mats;
+    u32 boneCount;
+    Bone* bones;
 };
 
 struct ModelInfo
 {
     s32 id;
+    u32 boneCount;
+    Bone* bones;
 };
 
 struct Transform
@@ -77,10 +83,11 @@ struct Transform
     Vec3 scale;
 };
 
-
+#define MAX_BONES 100
 struct alignas(16) VSPerInstance
 {
     Mat4 mvp;
+    Mat4 bones[MAX_BONES];
 };
 
 struct alignas(16) VSPerFrame
@@ -135,7 +142,7 @@ struct RenderCommandClear
 struct RenderCommandModel
 {
     Camera* camera;
-    ModelInfo model;
+    ModelInfo* model;
     // Vec3 position;
     // Quaternion rotation;
     // Vec3 scale;
@@ -169,7 +176,7 @@ void PushRenderClear(RenderGroup* renderGroup, Color color)
     command->color = color;
 }
 
-void PushRenderModel(RenderGroup* renderGroup, Camera* camera, ModelInfo model, Color color, Mat4 transform)
+void PushRenderModel(RenderGroup* renderGroup, Camera* camera, ModelInfo* model, Color color, Mat4 transform)
 {
     RenderCommandModel* command = PUSH_RENDER_ELEMENT(renderGroup, RenderCommandModel);
     command->camera = camera;

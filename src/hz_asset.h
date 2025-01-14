@@ -17,6 +17,7 @@ Asset LoadAsset(char* fileName, MemoryArena* arena)
             result = header->asset;
             result.loadedModel.meshes = (LoadedMesh*)((u64)file.content + (u64)header->asset.loadedModel.meshes);
             result.loadedModel.mats = (Texture*)((u64)file.content + (u64)header->asset.loadedModel.mats);
+            result.loadedModel.bones = (Bone*)((u64)file.content + (u64)header->asset.loadedModel.bones);
             for (u32 i = 0; i < result.loadedModel.matCount; ++i)
             {
                 result.loadedModel.mats[i].texel = (u32*)((u64)file.content + (u64)result.loadedModel.mats[i].texel);
@@ -26,7 +27,6 @@ Asset LoadAsset(char* fileName, MemoryArena* arena)
                 LoadedMesh mesh = result.loadedModel.meshes[i];
                 mesh.vertices = (Vert*)((u64)file.content + (u64)mesh.vertices);
                 mesh.indices = (u32*)((u64)file.content + (u64)mesh.indices);
-                mesh.bones = (Bone*)((u64)file.content + (u64)mesh.bones);
                 result.loadedModel.meshes[i] = mesh;
             }
         }
