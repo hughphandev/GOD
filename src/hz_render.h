@@ -3,9 +3,9 @@
 
 #include "hz_memory.h"
 #include "hz_math.h"
+#include "hz_anim.h"
 #include <d3d11.h>
 
-#define MAX_BONES_PER_VERT 4
 struct Vert
 {
     Vec3 position;
@@ -36,16 +36,6 @@ struct VertWeight
     u32 vertIndex;
     f32 weight;
 };
-
-#define MAX_CHILD_BONES 20
-struct Bone
-{
-    Mat4 offsetMatrix;
-    Mat4 localMatrix;
-    s32 parentIndex;
-    s32 childIndices[MAX_CHILD_BONES];
-};
-
 struct LoadedMesh
 {
     Mat4 transform;
@@ -67,13 +57,7 @@ struct LoadedModel
     Texture* mats;
     u32 boneCount;
     Bone* bones;
-};
-
-struct ModelInfo
-{
-    s32 id;
-    u32 boneCount;
-    Bone* bones;
+    Mat4 globalInverseTransform;
 };
 
 struct Transform
@@ -142,12 +126,14 @@ struct RenderCommandClear
 struct RenderCommandModel
 {
     Camera* camera;
-    ModelInfo* model;
-    // Vec3 position;
-    // Quaternion rotation;
-    // Vec3 scale;
+    u32 modelId;
+    u32 boneCount;
+    Bone* bones;
+    Mat4 globalInverseTransform;
     Color color;
     Mat4 transform;
+    NodeTransform* nodeTransforms;
+    u32 channelCount;
 };
 
 
@@ -176,13 +162,18 @@ void PushRenderClear(RenderGroup* renderGroup, Color color)
     command->color = color;
 }
 
-void PushRenderModel(RenderGroup* renderGroup, Camera* camera, ModelInfo* model, Color color, Mat4 transform)
+void PushRenderModel(RenderGroup* renderGroup, Camera* camera, u32 modelId, Color color, Mat4 transform, u32 boneCount, Bone* bones, Mat4 globalInverseTransform, NodeTransform* trans, u32 tranCount)
 {
     RenderCommandModel* command = PUSH_RENDER_ELEMENT(renderGroup, RenderCommandModel);
     command->camera = camera;
-    command->model = model;
+    command->modelId = modelId;
     command->color = color;
     command->transform = transform;
+    command->boneCount = boneCount;
+    command->bones = bones;
+    command->globalInverseTransform = globalInverseTransform;
+    command->nodeTransforms = trans;
+    command->channelCount = tranCount;
 }
 
 #endif

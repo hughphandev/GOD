@@ -63,6 +63,13 @@ union Mat4
   };
 };
 
+#define MAT4_IDENTITY { {\
+  {1, 0, 0, 0},\
+  {0, 1, 0, 0},\
+  {0, 0, 1, 0},\
+  {0, 0, 0, 1} \
+} }\
+
 struct Mat4Inverse
 {
   bool isExisted;
@@ -1013,15 +1020,72 @@ Mat4 GetPerspectiveProjection(f32 fov, f32 aspect, f32 nPlane, f32 fPlane) {
   return result;
 }
 
-inline Mat4 TRS(Vec3 position, Quaternion rotation, Vec3 scale)
+Quaternion Euler(Vec3 radian)
+{
+  // Calculate half-angles
+  float cy = Cos(radian.z * 0.5f);
+  float sy = Sin(radian.z * 0.5f);
+  float cp = Cos(radian.y * 0.5f);
+  float sp = Sin(radian.y * 0.5f);
+  float cr = Cos(radian.x * 0.5f);
+  float sr = Sin(radian.x * 0.5f);
+
+  // Compute quaternion components
+  return {
+   sr * cp * cy - cr * sp * sy,  // x
+   cr * sp * cy + sr * cp * sy,  // y
+   cr * cp * sy - sr * sp * cy,  // z
+   cr * cp * cy + sr * sp * sy,
+  };
+}
+
+Mat4 Rotate(Quaternion rotation)
+{
+  Mat4 result = {};
+  float w = rotation.w, x = rotation.x, y = rotation.y, z = rotation.z;
+
+  // Fill the 3x3 rotation part of the matrix
+  result.e[0][0] = 1 - 2 * y * y - 2 * z * z;
+  result.e[0][1] = 2 * x * y - 2 * z * w;
+  result.e[0][2] = 2 * x * z + 2 * y * w;
+
+  result.e[1][0] = 2 * x * y + 2 * z * w;
+  result.e[1][1] = 1 - 2 * x * x - 2 * z * z;
+  result.e[1][2] = 2 * y * z - 2 * x * w;
+
+  result.e[2][0] = 2 * x * z - 2 * y * w;
+  result.e[2][1] = 2 * y * z + 2 * x * w;
+  result.e[2][2] = 1 - 2 * x * x - 2 * y * y;
+
+  result.e[3][3] = 1;
+  return result;
+}
+
+Mat4 Translate(Vec3 translation)
 {
   Mat4 result = { {
-        {scale.x, 0, 0, position.x},
-        {0, scale.y, 0, position.y},
-        {0, 0, scale.x, position.z},
+        {1, 0, 0, translation.x},
+        {0, 1, 0, translation.y},
+        {0, 0, 1, translation.z},
+        {0, 0, 0, 1},
+  } };
+  return result;
+}
+
+Mat4 Scale(Vec3 scale)
+{
+  Mat4 result = { {
+        {scale.x, 0, 0, 0},
+        {0, scale.y, 0, 0},
+        {0, 0, scale.z, 0},
         {0, 0, 0, 1},
     } };
   return result;
+}
+
+inline Mat4 TRS(Vec3 position, Quaternion rotation, Vec3 scale)
+{
+  return Translate(position) * Rotate(rotation) * Scale(scale);
 }
 
 inline Mat4 Transpose(Mat4 mat) {

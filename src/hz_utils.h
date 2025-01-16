@@ -22,6 +22,9 @@ inline u32 SafeTruncateUInt64(u64 value);
 #define INVALID_DEFAULT_CASE default:{ASSERT(!"Invalid code path!");} 
 #define INVALID_VALUE 0xffffffff
 
+#define MEMORY_TO_FILE_ADDRESS(base, target, type) (type*)((u64)target - (u64)base);
+#define FILE_TO_MEMORY_ADDRESS(base, target, type) (type*)((u64)target + (u64)base);
+
 
 inline u32 SafeTruncateUInt64(u64 value)
 {

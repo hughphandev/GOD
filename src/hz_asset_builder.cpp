@@ -70,7 +70,6 @@ void ParseBoneHierarchy(MemoryArena* arena, const aiScene* scene, aiNode* node, 
     }
 }
 
-
 int main(int argc, char const* argv[])
 {
     printf("Packing %s -> %s\n", argv[2], argv[1]);
@@ -112,6 +111,7 @@ int main(int argc, char const* argv[])
         loadedModel->meshes = PUSH_ARRAY(&arena, LoadedMesh, loadedModel->meshCount);
         loadedModel->mats = PUSH_ARRAY(&arena, Texture, loadedModel->matCount);
         loadedModel->bones = (Bone*)((u64)arena.base + (u64)arena.used);
+        loadedModel->globalInverseTransform = *(Mat4*)(&scene->mRootNode->mTransformation.Inverse());
 
         aiString names[200] = {};
 
@@ -199,14 +199,61 @@ int main(int argc, char const* argv[])
         for (u32 i = 0; i < loadedModel->meshCount; ++i)
         {
             LoadedMesh* mesh = &loadedModel->meshes[i];
-            mesh->vertices = (Vert*)((u64)mesh->vertices - (u64)arena.base);
-            mesh->indices = (u32*)((u64)mesh->indices - (u64)arena.base);
+            mesh->vertices = MEMORY_TO_FILE_ADDRESS(arena.base, mesh->vertices, Vert);
+            mesh->indices = MEMORY_TO_FILE_ADDRESS(arena.base, mesh->indices, u32);
         }
 
 
-        loadedModel->bones = (Bone*)((u64)loadedModel->bones - (u64)arena.base);
-        loadedModel->mats = (Texture*)((u64)loadedModel->mats - (u64)arena.base);
-        loadedModel->meshes = (LoadedMesh*)((u64)loadedModel->meshes - (u64)arena.base);
+        loadedModel->bones = MEMORY_TO_FILE_ADDRESS(arena.base, loadedModel->bones, Bone);
+        loadedModel->mats = MEMORY_TO_FILE_ADDRESS(arena.base, loadedModel->mats, Texture);
+        loadedModel->meshes = MEMORY_TO_FILE_ADDRESS(arena.base, loadedModel->meshes, LoadedMesh);
+
+        header->asset.animCount = scene->mNumAnimations;
+        header->asset.animations = PUSH_ARRAY(&arena, Animation, header->asset.animCount);
+        Animation* animations = header->asset.animations;
+        for (u32 i = 0; i < header->asset.animCount; ++i)
+        {
+            animations[i].channelCount = scene->mAnimations[i]->mNumChannels;
+            animations[i].duration = (f32)(scene->mAnimations[i]->mDuration / scene->mAnimations[i]->mTicksPerSecond);
+
+            animations[i].channels = PUSH_ARRAY(&arena, NodeAnim, animations[i].channelCount);
+            for (u32 chanelIndex = 0; chanelIndex < scene->mAnimations[i]->mNumChannels; ++chanelIndex)
+            {
+                NodeAnim* nodeAnim = &animations[i].channels[chanelIndex];
+                aiNodeAnim* aiNodeAnim = scene->mAnimations[i]->mChannels[chanelIndex];
+
+                nodeAnim->nodeId = FindFirstIndex(names, aiNodeAnim->mNodeName, loadedModel->boneCount);
+                nodeAnim->positionKeyCount = aiNodeAnim->mNumPositionKeys;
+                nodeAnim->positionKeys = PUSH_ARRAY(&arena, Vec3Key, nodeAnim->positionKeyCount);
+                for (u32 keyIndex = 0; keyIndex < nodeAnim->positionKeyCount; ++keyIndex)
+                {
+                    nodeAnim->positionKeys[keyIndex].normalizedTime = (f32)(aiNodeAnim->mPositionKeys[keyIndex].mTime / scene->mAnimations[i]->mDuration);
+                    nodeAnim->positionKeys[keyIndex].value = *((Vec3*)&aiNodeAnim->mPositionKeys[keyIndex].mValue);
+                }
+
+                nodeAnim->rotationKeyCount = aiNodeAnim->mNumRotationKeys;
+                nodeAnim->rotationKeys = PUSH_ARRAY(&arena, QuatKey, nodeAnim->rotationKeyCount);
+                for (u32 keyIndex = 0; keyIndex < nodeAnim->rotationKeyCount; ++keyIndex)
+                {
+                    nodeAnim->rotationKeys[keyIndex].normalizedTime = (f32)(aiNodeAnim->mRotationKeys[keyIndex].mTime / scene->mAnimations[i]->mDuration);
+                    nodeAnim->rotationKeys[keyIndex].value = *((Quaternion*)&aiNodeAnim->mRotationKeys[keyIndex].mValue);
+                }
+
+                nodeAnim->scalingKeyCount = aiNodeAnim->mNumScalingKeys;
+                nodeAnim->scalingKeys = PUSH_ARRAY(&arena, Vec3Key, nodeAnim->scalingKeyCount);
+                for (u32 keyIndex = 0; keyIndex < nodeAnim->scalingKeyCount; ++keyIndex)
+                {
+                    nodeAnim->scalingKeys[keyIndex].normalizedTime = (f32)(aiNodeAnim->mScalingKeys[keyIndex].mTime / scene->mAnimations[i]->mDuration);
+                    nodeAnim->scalingKeys[keyIndex].value = *((Vec3*)&aiNodeAnim->mScalingKeys[keyIndex].mValue);
+                }
+
+                nodeAnim->positionKeys = MEMORY_TO_FILE_ADDRESS(arena.base, nodeAnim->positionKeys, Vec3Key);
+                nodeAnim->rotationKeys = MEMORY_TO_FILE_ADDRESS(arena.base, nodeAnim->rotationKeys, QuatKey);
+                nodeAnim->scalingKeys = MEMORY_TO_FILE_ADDRESS(arena.base, nodeAnim->scalingKeys, Vec3Key);
+            }
+            animations[i].channels = MEMORY_TO_FILE_ADDRESS(arena.base, animations[i].channels, NodeAnim);
+        }
+        header->asset.animations = MEMORY_TO_FILE_ADDRESS(arena.base, header->asset.animations, Animation);
 
         fwrite(arena.base, arena.used, 1, out);
 

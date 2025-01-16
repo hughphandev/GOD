@@ -14,10 +14,16 @@ enum class AssetType
 struct Asset
 {
     AssetType type;
+    u32 id;
 
     union
     {
-        LoadedModel loadedModel;
+        struct
+        {
+            LoadedModel loadedModel;
+            u32 animCount;
+            Animation* animations;
+        };
     };
 
 };

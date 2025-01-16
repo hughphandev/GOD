@@ -22,6 +22,10 @@ HPI void Init(GameState* state, RenderGroup* renderGroup, GameMemory* gameMemory
     state->yaw = 90;
 
     state->dt = 1 / 60.0f;
+
+    state->assets[(int)GameAsset::Cube] = LoadAsset("asset\\cube.hza", &gameMemory->persistantArena);
+    state->assets[(int)GameAsset::Sphere] = LoadAsset("asset\\sphere.hza", &gameMemory->persistantArena);
+    state->assets[(int)GameAsset::Spindy] = LoadAsset("asset\\ghost-spider-glb.hza", &gameMemory->persistantArena);
 }
 
 HPI void Update(GameState* state, RenderGroup* renderGroup, GameMemory* gameMemory)
@@ -88,5 +92,8 @@ HPI void Update(GameState* state, RenderGroup* renderGroup, GameMemory* gameMemo
     //         PushRenderModel(renderGroup, &state->camera, state->cubeModel, { 1.0f, 1.0f, 1.0f, 1.0f }, TRS({ (float)i, 0, (float)j }, {}, { 1, 1, 1 }));
     //     }
     // }
-    PushRenderModel(renderGroup, &state->camera, state->spidyModel, { 1.0f, 1.0f, 1.0f, 1.0f }, TRS({ (float)0, 0, (float)0 }, {}, { 1, 1, 1 }));
+    Asset spindy = state->assets[(int)GameAsset::Spindy];
+    float div = state->t / spindy.animations[0].duration;
+    NodeTransform* trans = ReadNodeTransform(spindy.animations[0], div - Floor(div), &gameMemory->transientArena);
+    PushRenderModel(renderGroup, &state->camera, spindy.id, { 1.0f, 1.0f, 1.0f, 1.0f }, TRS({ (float)0, 0, (float)0 }, {}, { 1, 1, 1 }), spindy.loadedModel.boneCount, spindy.loadedModel.bones, spindy.loadedModel.globalInverseTransform, trans, spindy.animations[0].channelCount);
 }

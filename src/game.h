@@ -8,7 +8,6 @@
 struct Entity
 {
     Transform transform;
-    ModelInfo model;
 };
 
 struct ButtonState
@@ -59,15 +58,21 @@ struct GameAPI
 
 };
 
+enum class GameAsset
+{
+    Cube,
+    Sphere,
+    Spindy,
+    TERMINATOR,
+};
+
 struct GameState
 {
     bool running = true;
     char* tittle;
     int width, height;
 
-    ModelInfo* cubeModel;
-    ModelInfo* sphereModel;
-    ModelInfo* spidyModel;
+    Asset assets[(int)GameAsset::TERMINATOR];
 
     GameMode gameMode;
 
@@ -83,6 +88,7 @@ struct GameState
     GameAPI api;
 
     float dt;
+    float t;
 };
 
 

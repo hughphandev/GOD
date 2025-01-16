@@ -192,27 +192,20 @@ static Win32Mesh Win32LoadMesh(Win32D3D11* d3d11, LoadedMesh initialMesh)
     return result;
 }
 
-static ModelInfo* Win32LoadModel(Win32D3D11* d3d11, LoadedModel initialModel, MemoryArena* arena)
+static u32 Win32LoadModel(Win32D3D11* d3d11, LoadedModel initialModel, MemoryArena* arena)
 {
-    ModelInfo* result = PUSH_TYPE(arena, ModelInfo);
-    result->boneCount = initialModel.boneCount;
-    result->bones = PUSH_ARRAY(arena, Bone, result->boneCount);
-    Memcpy(result->bones, initialModel.bones, sizeof(Bone) * result->boneCount);
-
+    u32 result = INVALID_VALUE;
     for (int i = 0; i < MAX_MODEL_COUNT; ++i)
     {
         if (!d3d11->models[i].isValid)
         {
-            result->id = i;
+            result = i;
             break;
         }
-        else if (i == MAX_MODEL_COUNT - 1)
-        {
-            result->id = -1;
-        }
     }
+    ASSERT(result != INVALID_VALUE);
 
-    Win32Model* win32Model = &d3d11->models[result->id];
+    Win32Model* win32Model = &d3d11->models[result];
     win32Model->isValid = true;
 
     win32Model->meshCount = initialModel.meshCount;
@@ -407,10 +400,18 @@ static void Win32InitScene(GameState* gameState, RenderGroup* renderGroup, Win32
 
         d3d11->deviceContext->RSSetViewports(1, &viewPort);
 
-        //TODO: refactor to game code
-        gameState->cubeModel = Win32LoadModel(d3d11, LoadAsset("asset\\cube.hza", &gameMemory->transientArena).loadedModel, &gameMemory->persistantArena);
-        gameState->sphereModel = Win32LoadModel(d3d11, LoadAsset("asset\\sphere.hza", &gameMemory->transientArena).loadedModel, &gameMemory->persistantArena);
-        gameState->spidyModel = Win32LoadModel(d3d11, LoadAsset("asset\\ghost-spider-glb.hza", &gameMemory->transientArena).loadedModel, &gameMemory->persistantArena);
+        for (u32 i = 0; i < ARRAY_COUNT(gameState->assets); ++i)
+        {
+            switch (gameState->assets[i].type)
+            {
+                case AssetType::Model:
+                    gameState->assets[i].id = Win32LoadModel(d3d11, gameState->assets[i].loadedModel, &gameMemory->persistantArena);
+                    break;
+
+                default:
+                    break;
+            }
+        }
     }
 }
 
@@ -456,7 +457,7 @@ static void Win32RenderOutput(RenderGroup* renderGroup, Win32D3D11 d3d11)
             {
                 RenderCommandModel* entry = (RenderCommandModel*)base;
 
-                Win32Model model = d3d11.models[entry->model->id];
+                Win32Model model = d3d11.models[entry->modelId];
                 for (u32 i = 0; i < model.meshCount; ++i)
                 {
                     {
@@ -468,15 +469,24 @@ static void Win32RenderOutput(RenderGroup* renderGroup, Win32D3D11 d3d11)
                         Mat4 worldTransform = model.meshes[i].transform * entry->transform;
                         vsPerInstance->mvp = GetPerspectiveProjection(entry->camera->fovy, entry->camera->aspect, 0.1f, 100.0f) * GetViewMatrix(entry->camera->position, entry->camera->direction, entry->camera->worldUp) * worldTransform;
                         ZeroSize(vsPerInstance->bones, sizeof(vsPerInstance->bones));
-                        for (u32 boneIndex = 0; boneIndex < entry->model->boneCount; ++boneIndex)
+                        for (u32 boneIndex = 0; boneIndex < entry->boneCount; ++boneIndex)
                         {
-                            Mat4 transform = entry->model->bones[boneIndex].offsetMatrix;
-
-                            for (int id = boneIndex; entry->model->bones[id].parentIndex != INVALID_VALUE; id = entry->model->bones[id].parentIndex)
+                            Mat4 transform = MAT4_IDENTITY;
+                            for (int id = boneIndex; entry->bones[id].parentIndex != INVALID_VALUE; id = entry->bones[id].parentIndex)
                             {
-                                transform = entry->model->bones[id].localMatrix * transform;
+                                u32 channelIndex = FindFirstIndex(entry->nodeTransforms, entry->channelCount, id);
+
+                                if (channelIndex >= 0)
+                                {
+                                    transform = entry->nodeTransforms[channelIndex].transform * transform;
+                                    break;
+                                }
+                                else
+                                {
+                                    transform = entry->bones[id].localMatrix * transform;
+                                }
                             }
-                            vsPerInstance->bones[boneIndex] = transform;
+                            vsPerInstance->bones[boneIndex] = entry->globalInverseTransform * transform * entry->bones[boneIndex].offsetMatrix;
                         }
                         d3d11.deviceContext->Unmap(model.meshes[i].vsPerInstance, 0);
                     }
@@ -771,8 +781,8 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prevInstance, PSTR cmdLine, int
                 }
                 LOGINFO("%.2fms\n", elapsed * 1000);
                 lastPerfCounter = Win32GetPerfCounter();
+                gameState->t += gameState->dt;
             }
-
             CloseWindow(windowHandle);
         }
         else
