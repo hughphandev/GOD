@@ -14,6 +14,7 @@ cbuffer VSPerFrame : register(b1)
 cbuffer VSPerInstance : register(b0)
 {
   matrix mvp;
+  matrix model;
   matrix bones[MAX_BONES];
 };
 
@@ -26,7 +27,7 @@ matrix boneTransform =
     bones[input.boneIds[3]] * input.weights[3] ; 
   output.position = mul(mul(float4(input.positionLocal, 1.0), boneTransform), mvp);
   output.uv = input.uv;
-  output.normal = input.normal;
+  output.normal = mul(input.normal, (float3x3)model);
   output.boneIds = input.boneIds;
   output.weights = input.weights;
   return output;

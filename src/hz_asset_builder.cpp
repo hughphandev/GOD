@@ -143,7 +143,7 @@ int main(int argc, char const* argv[])
                     loadedModel->mats[i].height = y;
                     loadedModel->mats[i].texel = PUSH_ARRAY(&arena, u32, x * y);
                     memcpy(loadedModel->mats[i].texel, texel, sizeof(u32) * x * y);
-                    loadedModel->mats[i].texel = (u32*)((u64)loadedModel->mats[i].texel - (u64)arena.base);
+                    loadedModel->mats[i].texel = MEMORY_TO_FILE_ADDRESS(arena.base, loadedModel->mats[i].texel, u32);
                 }
             }
         }
@@ -236,7 +236,10 @@ int main(int argc, char const* argv[])
                 for (u32 keyIndex = 0; keyIndex < nodeAnim->rotationKeyCount; ++keyIndex)
                 {
                     nodeAnim->rotationKeys[keyIndex].normalizedTime = (f32)(aiNodeAnim->mRotationKeys[keyIndex].mTime / scene->mAnimations[i]->mDuration);
-                    nodeAnim->rotationKeys[keyIndex].value = *((Quaternion*)&aiNodeAnim->mRotationKeys[keyIndex].mValue);
+                    nodeAnim->rotationKeys[keyIndex].value.x = aiNodeAnim->mRotationKeys[keyIndex].mValue.x;
+                    nodeAnim->rotationKeys[keyIndex].value.y = aiNodeAnim->mRotationKeys[keyIndex].mValue.y;
+                    nodeAnim->rotationKeys[keyIndex].value.z = aiNodeAnim->mRotationKeys[keyIndex].mValue.z;
+                    nodeAnim->rotationKeys[keyIndex].value.w = aiNodeAnim->mRotationKeys[keyIndex].mValue.w;
                 }
 
                 nodeAnim->scalingKeyCount = aiNodeAnim->mNumScalingKeys;

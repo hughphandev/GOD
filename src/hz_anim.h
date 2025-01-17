@@ -66,12 +66,12 @@ Vec3 GetValue(Vec3Key* keys, u32 keyCount, float t)
 {
     ASSERT(keyCount > 0);
     u32 i = 0;
-    for (; t <= keys[i].normalizedTime && i < keyCount; ++i);
+    while (t >= keys[i].normalizedTime && i < keyCount) ++i;
     if (i == keyCount) return keys[keyCount - 1].value;
     else if (i == 0)return keys[0].value;
     else
     {
-        return Lerp(keys[i - 1].value, keys[1].value, (t - keys[i - 1].normalizedTime) / (keys[i].normalizedTime - keys[i - 1].normalizedTime));
+        return Lerp(keys[i - 1].value, keys[i].value, (t - keys[i - 1].normalizedTime) / (keys[i].normalizedTime - keys[i - 1].normalizedTime));
     }
 }
 
@@ -79,12 +79,12 @@ Quaternion GetValue(QuatKey* keys, u32 keyCount, float t)
 {
     ASSERT(keyCount > 0);
     u32 i = 0;
-    for (; t <= keys[i].normalizedTime && i < keyCount; ++i);
+    for (; t >= keys[i].normalizedTime && i < keyCount; ++i);
     if (i == keyCount) return keys[keyCount - 1].value;
     else if (i == 0)return keys[0].value;
     else
     {
-        return Lerp(keys[i - 1].value, keys[1].value, (t - keys[i - 1].normalizedTime) / (keys[i].normalizedTime - keys[i - 1].normalizedTime));
+        return Normalize(Lerp(keys[i - 1].value, keys[i].value, (t - keys[i - 1].normalizedTime) / (keys[i].normalizedTime - keys[i - 1].normalizedTime)));
     }
 }
 

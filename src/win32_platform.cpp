@@ -468,11 +468,12 @@ static void Win32RenderOutput(RenderGroup* renderGroup, Win32D3D11 d3d11)
                         VSPerInstance* vsPerInstance = (VSPerInstance*)subRes.pData;
                         Mat4 worldTransform = model.meshes[i].transform * entry->transform;
                         vsPerInstance->mvp = GetPerspectiveProjection(entry->camera->fovy, entry->camera->aspect, 0.1f, 100.0f) * GetViewMatrix(entry->camera->position, entry->camera->direction, entry->camera->worldUp) * worldTransform;
+                        vsPerInstance->model = worldTransform;
                         ZeroSize(vsPerInstance->bones, sizeof(vsPerInstance->bones));
                         for (u32 boneIndex = 0; boneIndex < entry->boneCount; ++boneIndex)
                         {
                             Mat4 transform = MAT4_IDENTITY;
-                            for (int id = boneIndex; entry->bones[id].parentIndex != INVALID_VALUE; id = entry->bones[id].parentIndex)
+                            for (int id = boneIndex; id != INVALID_VALUE; id = entry->bones[id].parentIndex)
                             {
                                 u32 channelIndex = FindFirstIndex(entry->nodeTransforms, entry->channelCount, id);
 

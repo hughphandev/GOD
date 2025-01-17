@@ -71,6 +71,7 @@ struct Transform
 struct alignas(16) VSPerInstance
 {
     Mat4 mvp;
+    Mat4 model;
     Mat4 bones[MAX_BONES];
 };
 

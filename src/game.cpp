@@ -25,7 +25,8 @@ HPI void Init(GameState* state, RenderGroup* renderGroup, GameMemory* gameMemory
 
     state->assets[(int)GameAsset::Cube] = LoadAsset("asset\\cube.hza", &gameMemory->persistantArena);
     state->assets[(int)GameAsset::Sphere] = LoadAsset("asset\\sphere.hza", &gameMemory->persistantArena);
-    state->assets[(int)GameAsset::Spindy] = LoadAsset("asset\\ghost-spider-glb.hza", &gameMemory->persistantArena);
+    // state->assets[(int)GameAsset::Spindy] = LoadAsset("asset\\ghost-spider-glb.hza", &gameMemory->persistantArena);
+    state->assets[(int)GameAsset::Spindy] = LoadAsset("asset\\cube-glb.hza", &gameMemory->persistantArena);
 }
 
 HPI void Update(GameState* state, RenderGroup* renderGroup, GameMemory* gameMemory)
