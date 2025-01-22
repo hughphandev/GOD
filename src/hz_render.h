@@ -89,13 +89,13 @@ struct alignas(16) VSPerScene
 struct alignas(16) PSPerInstance
 {
     Color color;
-    Color diffuse;
-    Color ambient;
 };
 
 struct alignas(16) PSPerFrame
 {
     Vec3 lightDirection;
+    Color diffuse;
+    Color ambient;
 };
 
 struct alignas(16) PSPerScene

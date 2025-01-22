@@ -432,8 +432,9 @@ static void Win32RenderOutput(RenderGroup* renderGroup, Win32D3D11 d3d11)
         d3d11.deviceContext->Map(d3d11.psPerFrame, 0, D3D11_MAP_WRITE_DISCARD, 0, &subRes);
 
         PSPerFrame* psPerFrame = (PSPerFrame*)subRes.pData;
-        psPerFrame->lightDirection = Normalize(Vec3{ -1, -1, 1 });
         d3d11.deviceContext->Unmap(d3d11.psPerFrame, 0);
+        psPerFrame->lightDirection = Normalize(Vec3{ -1, -1, 1 });
+        psPerFrame->diffuse = { 1, 1, 1, 1 };
         d3d11.deviceContext->PSSetConstantBuffers(1, 1, &d3d11.psPerFrame);
     }
 
@@ -499,8 +500,6 @@ static void Win32RenderOutput(RenderGroup* renderGroup, Win32D3D11 d3d11)
 
                         PSPerInstance* psPerInstance = (PSPerInstance*)subRes.pData;
                         psPerInstance->color = entry->color;
-                        psPerInstance->diffuse = { 1, 1, 1, 1 };
-                        psPerInstance->ambient = { 0.1, 0.1, 0.1, 0.1 };
 
                         d3d11.deviceContext->Unmap(model.meshes[i].psPerInstance, 0);
                     }
