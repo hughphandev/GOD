@@ -14,8 +14,8 @@ struct VSOut {
     float4 position : SV_POSITION; // required output of VS
     float3 normal : NORMAL;
     float2 uv: TEXCOORD;
-    nointerpolation  uint4 boneIds : BONE_IDS;
-    float4 weights : WEIGHTS;
+    // nointerpolation  uint4 boneIds : BONE_IDS;
+    // float4 weights : WEIGHTS;
 };
 
 struct PSOut {

@@ -469,6 +469,7 @@ static void Win32RenderOutput(RenderGroup* renderGroup, Win32D3D11 d3d11)
                         Mat4 worldTransform = model.meshes[i].transform * entry->transform;
                         vsPerInstance->mvp = GetPerspectiveProjection(entry->camera->fovy, entry->camera->aspect, 0.1f, 100.0f) * GetViewMatrix(entry->camera->position, entry->camera->direction, entry->camera->worldUp) * worldTransform;
                         vsPerInstance->model = worldTransform;
+                        vsPerInstance->isSkinnedMesh = entry->boneCount > 0;
                         ZeroSize(vsPerInstance->bones, sizeof(vsPerInstance->bones));
                         for (u32 boneIndex = 0; boneIndex < entry->boneCount; ++boneIndex)
                         {

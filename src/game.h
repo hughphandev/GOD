@@ -5,10 +5,6 @@
 #include "hz_render.h"
 #include "hz_asset.h"
 
-struct Entity
-{
-    Transform transform;
-};
 
 struct ButtonState
 {
@@ -62,8 +58,17 @@ enum class GameAsset
 {
     Cube,
     Sphere,
-    Spindy,
+    CubeRig,
     TERMINATOR,
+};
+
+struct Entity
+{
+    Transform transform;
+    GameAsset gfx;
+    u32 animIndex;
+    f32 normalizedTime;
+    bool isEnabled;
 };
 
 struct GameState
@@ -72,16 +77,19 @@ struct GameState
     char* tittle;
     int width, height;
 
+    Entity entities[1000];
+    Entity* player;
+
     Asset assets[(int)GameAsset::TERMINATOR];
 
     GameMode gameMode;
 
-    float yaw, pitch;
+    float pitch, yaw;
 
     bool showCursor;
     bool lockCursor;
 
-    Camera camera;
+    Camera camera[(int)GameMode::TERMINATOR];
     //TODO: maybe introduce double buffering if necessary!
     GameInput input;
 

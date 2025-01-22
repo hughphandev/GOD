@@ -73,6 +73,7 @@ struct alignas(16) VSPerInstance
     Mat4 mvp;
     Mat4 model;
     Mat4 bones[MAX_BONES];
+    bool isSkinnedMesh;
 };
 
 struct alignas(16) VSPerFrame
@@ -163,7 +164,7 @@ void PushRenderClear(RenderGroup* renderGroup, Color color)
     command->color = color;
 }
 
-void PushRenderModel(RenderGroup* renderGroup, Camera* camera, u32 modelId, Color color, Mat4 transform, u32 boneCount, Bone* bones, Mat4 globalInverseTransform, NodeTransform* trans, u32 tranCount)
+void PushRenderModel(RenderGroup* renderGroup, Camera* camera, u32 modelId, Color color, Mat4 transform, u32 boneCount, Bone* bones, Mat4 globalInverseTransform, u32 tranCount, NodeTransform* trans)
 {
     RenderCommandModel* command = PUSH_RENDER_ELEMENT(renderGroup, RenderCommandModel);
     command->camera = camera;

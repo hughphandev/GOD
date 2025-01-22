@@ -1020,6 +1020,16 @@ Mat4 GetPerspectiveProjection(f32 fov, f32 aspect, f32 nPlane, f32 fPlane) {
   return result;
 }
 
+Vec3 GetCamDir(f32 pitch, f32 yaw)
+{
+  return Normalize(
+    Vec3{
+      Cos(yaw) * Cos(pitch),
+      Sin(pitch),
+      Sin(yaw) * Cos(pitch),
+    });
+}
+
 Quaternion Euler(Vec3 radian)
 {
   // Calculate half-angles
