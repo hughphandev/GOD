@@ -25,9 +25,9 @@ PSOut ps_main(VSOut input) {
   PSOut output = (PSOut)0;
   float intensity = dot(input.normal, -lightDirection);
   intensity = intensity + 1;
-  intensity = intensity / 0.49;
+  intensity = intensity / 0.9;
   intensity = floor(intensity);
-  intensity = intensity * 0.49; 
+  intensity = intensity * 0.9; 
   intensity = remap(0, 2, 0.3, 1, intensity);
   float4 tint = (diffuse * intensity);
   output.color = meshTexture.Sample(MeshTextureSampler, input.uv) * tint;

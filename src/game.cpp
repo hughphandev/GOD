@@ -57,6 +57,8 @@ HPI void Init(GameState* state, RenderGroup* renderGroup, GameMemory* gameMemory
             CreateEntity({ (f32)i, -0.5f, (f32)j }, {}, { 1, 1, 1 }, GameAsset::Cube, state);
         }
     }
+
+    CreateEntity({ 2, 2, 2 }, {}, { 1, 1, 1 }, GameAsset::Sphere, state);
 }
 
 HPI void Update(GameState* state, RenderGroup* renderGroup, GameMemory* gameMemory)

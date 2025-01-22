@@ -433,7 +433,7 @@ static void Win32RenderOutput(RenderGroup* renderGroup, Win32D3D11 d3d11)
 
         PSPerFrame* psPerFrame = (PSPerFrame*)subRes.pData;
         d3d11.deviceContext->Unmap(d3d11.psPerFrame, 0);
-        psPerFrame->lightDirection = Normalize(Vec3{ -1, -1, 1 });
+        psPerFrame->lightDirection = Normalize(Vec3{ -1, -1, 0 });
         psPerFrame->diffuse = { 1, 1, 1, 1 };
         d3d11.deviceContext->PSSetConstantBuffers(1, 1, &d3d11.psPerFrame);
     }

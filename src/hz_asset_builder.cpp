@@ -79,7 +79,7 @@ int main(int argc, char const* argv[])
                                                aiProcess_MakeLeftHanded |
                                                aiProcess_FlipUVs |
                                                aiProcess_Triangulate |
-                                               //    aiProcess_JoinIdenticalVertices |
+                                               aiProcess_JoinIdenticalVertices |
                                                aiProcess_EmbedTextures |
                                                aiProcess_SortByPType);
     if (NULL == scene) {
