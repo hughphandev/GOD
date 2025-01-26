@@ -780,7 +780,7 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prevInstance, PSTR cmdLine, int
                     //TODO: Missed framerate!
                     LOGWARNING("Missed");
                 }
-                LOGINFO("%.2fms\n", elapsed * 1000);
+                // LOGINFO("%.2fms\n", elapsed * 1000);
                 lastPerfCounter = Win32GetPerfCounter();
                 gameState->t += gameState->dt;
             }

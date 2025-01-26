@@ -33,9 +33,13 @@ struct Vec3I
   s32 x, y, z;
 };
 
-struct Vec3
+union Vec3
 {
-  f32 x, y, z;
+  struct
+  {
+    f32 x, y, z;
+  };
+  f32 elements[3];
 };
 
 union Vec4
@@ -104,12 +108,6 @@ union Rect
     //TODO: Test
     return { this->pos.x + (this->width / 2.0f), this->pos.y + (this->height / 2.0f) };
   }
-};
-
-struct Box
-{
-  Vec3 pos;
-  Vec3 size;
 };
 
 // Implementation
@@ -526,6 +524,11 @@ inline bool operator>(Vec3 a, f32 b)
 inline bool IsApproximate(Vec3 a, Vec3 b, f32 delta = EPSILON)
 {
   return Abs(a.x - b.x) < delta && Abs(a.y - b.y) < delta && Abs(a.z - b.z) < delta;
+}
+
+inline Vec3 Abs(Vec3 v)
+{
+  return { Abs(v.x), Abs(v.y), Abs(v.z) };
 }
 
 inline Vec3 Normalize(Vec3 v)

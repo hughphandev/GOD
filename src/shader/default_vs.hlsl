@@ -30,12 +30,12 @@ matrix boneTransform =
   if(isSkinnedMesh) 
   {
     output.position = mul(mul(float4(input.positionLocal, 1.0), boneTransform), mvp);
-    output.normal = mul(mul(input.normal, (float3x3)boneTransform), (float3x3)model);
+    output.normal = normalize(mul(mul(input.normal, (float3x3)boneTransform), (float3x3)model));
   }
   else 
   {
     output.position = mul(float4(input.positionLocal, 1.0), mvp);
-    output.normal = mul(input.normal, (float3x3)model);
+    output.normal = normalize(mul(input.normal, (float3x3)model));
   }
   output.uv = input.uv;
   // output.boneIds = input.boneIds;

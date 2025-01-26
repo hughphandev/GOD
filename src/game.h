@@ -4,6 +4,7 @@
 #include "hz_define.h"
 #include "hz_render.h"
 #include "hz_asset.h"
+#include "hz_physics.h"
 
 
 struct ButtonState
@@ -65,6 +66,7 @@ enum class GameAsset
 struct Entity
 {
     Transform transform;
+    Box collider;
     GameAsset gfx;
     u32 animIndex;
     f32 normalizedTime;

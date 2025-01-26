@@ -11,6 +11,8 @@ Entity* CreateEntity(Vec3 pos, Quaternion rot, Vec3 scale, GameAsset gfx, GameSt
             state->entities[i].transform.position = pos;
             state->entities[i].transform.rotation = rot;
             state->entities[i].transform.scale = scale;
+            state->entities[i].collider.position = pos;
+            state->entities[i].collider.extents = 0.5f * scale;
             state->entities[i].gfx = gfx;
             state->entities[i].animIndex = INVALID_VALUE;
             return &state->entities[i];
@@ -47,16 +49,17 @@ HPI void Init(GameState* state, RenderGroup* renderGroup, GameMemory* gameMemory
     state->assets[(int)GameAsset::Sphere] = LoadAsset("asset\\sphere.hza", &gameMemory->persistantArena);
     state->assets[(int)GameAsset::CubeRig] = LoadAsset("asset\\cube-rig.hza", &gameMemory->persistantArena);
 
-    state->player = CreateEntity({}, {}, { 1, 1, 1 }, GameAsset::CubeRig, state);
+    state->player = CreateEntity({ 0, 0.5f, 0 }, {}, { 1, 1, 1 }, GameAsset::Cube, state);
     state->player->animIndex = 0;
 
-    for (int i = -10; i < 10; ++i)
-    {
-        for (int j = -10; j < 10; j++)
-        {
-            CreateEntity({ (f32)i, -0.5f, (f32)j }, {}, { 1, 1, 1 }, GameAsset::Cube, state);
-        }
-    }
+    // for (int i = -10; i < 10; ++i)
+    // {
+    //     for (int j = -10; j < 10; j++)
+    //     {
+    //         CreateEntity({ (f32)i, -0.5f, (f32)j }, {}, { 1, 1, 1 }, GameAsset::Cube, state);
+    //     }
+    // }
+    CreateEntity({ 5, 0.5f, 5 }, {}, { 1, 1, 1 }, GameAsset::Cube, state);
 
     CreateEntity({ 2, 2, 2 }, {}, { 1, 1, 1 }, GameAsset::Sphere, state);
 }
@@ -93,10 +96,25 @@ HPI void Update(GameState* state, RenderGroup* renderGroup, GameMemory* gameMemo
             {
                 state->player->transform.position.x += state->dt * speed;
             }
+            state->player->collider.position = state->player->transform.position;
 
-            f32 div = state->t / state->assets[(int)state->player->gfx].animations[state->player->animIndex].duration;
-            state->player->normalizedTime = div - Floor(div);
-
+            for (int i = 0; i < ARRAY_COUNT(state->entities); ++i)
+            {
+                if (state->player != &state->entities[i])
+                {
+                    Box col = UnionBox(state->player->collider, state->entities[i].collider);
+                    if (col.extents > EPSILON)
+                    {
+                        int minIndex = 0;
+                        for (int index = 1; index < ARRAY_COUNT(col.extents.elements); ++index)
+                        {
+                            if (col.extents.elements[minIndex] > col.extents.elements[index]) minIndex = index;
+                        }
+                        state->player->transform.position.elements[minIndex] += 2 * (col.position.elements[minIndex] > state->entities[i].collider.position.elements[minIndex] ? col.extents.elements[minIndex] : -col.extents.elements[minIndex]);
+                        state->player->collider.position = state->player->transform.position;
+                    }
+                }
+            }
         }break;
 
         case GameMode::Editor:
@@ -133,6 +151,9 @@ HPI void Update(GameState* state, RenderGroup* renderGroup, GameMemory* gameMemo
         }break;
         INVALID_DEFAULT_CASE
     }
+
+    f32 div = state->t / state->assets[(int)state->player->gfx].animations[state->player->animIndex].duration;
+    state->player->normalizedTime = div - Floor(div);
 
     PushRenderClear(renderGroup, { 0.5f, 0.5f, 0.5f, 1.0f });
 
