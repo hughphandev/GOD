@@ -52,15 +52,34 @@ HPI void Init(GameState* state, RenderGroup* renderGroup, GameMemory* gameMemory
     state->player = CreateEntity({ 0, 0.5f, 0 }, {}, { 1, 1, 1 }, GameAsset::Cube, state);
     state->player->animIndex = 0;
 
-    // for (int i = -10; i < 10; ++i)
-    // {
-    //     for (int j = -10; j < 10; j++)
-    //     {
-    //         CreateEntity({ (f32)i, -0.5f, (f32)j }, {}, { 1, 1, 1 }, GameAsset::Cube, state);
-    //     }
-    // }
-    CreateEntity({ 5, 0.5f, 5 }, {}, { 1, 1, 1 }, GameAsset::Cube, state);
+    Vec3 dirs[] =
+    {
+        {1, 0, 0},
+        {-1, 0, 0},
+        {0, 0, 1},
+        {0, 0, -1},
+    };
 
+    Vec3 current = { 0, -0.5f, 0 };
+    CreateEntity({}, {}, { 1, 1, 1 }, GameAsset::Cube, state);
+    for (int i = 0; i < 500;)
+    {
+        current += dirs[rand() % ARRAY_COUNT(dirs)];
+        bool exists = false;
+        for (int j = 0; j < ARRAY_COUNT(state->entities); ++j)
+        {
+            if (state->entities[i].transform.position == current)
+            {
+                exists = true;
+            }
+        }
+        if (!exists)
+        {
+            CreateEntity(current, {}, { 1, 1, 1 }, GameAsset::Cube, state);
+            ++i;
+        }
+    }
+    CreateEntity({ 5, 0.5f, 5 }, {}, { 1, 1, 1 }, GameAsset::Cube, state);
     CreateEntity({ 2, 2, 2 }, {}, { 1, 1, 1 }, GameAsset::Sphere, state);
 }
 
