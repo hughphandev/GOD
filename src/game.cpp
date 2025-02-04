@@ -62,6 +62,7 @@ HPI void Init(GameState* state, RenderGroup* renderGroup, GameMemory* gameMemory
 
     Vec3 current = { 0, -0.5f, 0 };
     CreateEntity({}, {}, { 1, 1, 1 }, GameAsset::Cube, state);
+    srand(10);
     for (int i = 0; i < 500;)
     {
         current += dirs[rand() % ARRAY_COUNT(dirs)];

@@ -135,7 +135,7 @@ inline int FindFirstIndex(T* c, T target, int len)
 }
 
 template <typename T>
-inline int FindLastIndex(T* c, T target, int len)
+inline int FindLastIndex(const T* c, T target, int len)
 {
   for (int i = len - 1; i >= 0; ++i)
   {
@@ -144,7 +144,7 @@ inline int FindLastIndex(T* c, T target, int len)
   return INVALID_VALUE;
 }
 
-inline int FindLastIndex(char* c, char target)
+inline int FindLastIndex(const char* c, char target)
 {
   int result = INVALID_VALUE;
   size_t len = strlen(c);
@@ -155,12 +155,12 @@ inline int FindLastIndex(char* c, char target)
   return result;
 }
 
-inline char* Copy(char* des, char* src)
+inline char* Copy(char* des, const char* src)
 {
   return strcpy(des, src);
 }
 
-inline char* Copy(char* des, char* src, int count)
+inline char* Copy(char* des, const char* src, int count)
 {
   return strncpy(des, src, count);
 }

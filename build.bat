@@ -52,8 +52,8 @@ REM Test code
 REM Build Assets
 	echo Build Assets
 
-	for /R %AssetDir% %%f in (*.fbx, *.glb) do (
-		%BuildDir%\AssetPacker.exe %BuildAssetDir%\%%~nf.hza %%f
+	for /R %AssetDir% %%f in (*) do (
+		%BuildDir%\AssetPacker.exe %%f %BuildAssetDir%\%%~nf.hza 
 	)
 
 REM Reload Dll

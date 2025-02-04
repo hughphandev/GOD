@@ -24,8 +24,8 @@ struct Asset
             u32 animCount;
             Animation* animations;
         };
+        Texture texture;
     };
-
 };
 
 struct AssetHeader
