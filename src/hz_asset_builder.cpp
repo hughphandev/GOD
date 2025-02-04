@@ -72,8 +72,6 @@ void ParseBoneHierarchy(MemoryArena* arena, const aiScene* scene, aiNode* node, 
 
 void BuildModelAsset(const aiScene* scene, const char* inPath, FILE* out, MemoryArena* arena)
 {
-
-
     char fullPath[256];
     int count = FindLastIndex(inPath, '\\') + 1;
     Copy(fullPath, inPath, count);
@@ -240,6 +238,20 @@ void BuildModelAsset(const aiScene* scene, const char* inPath, FILE* out, Memory
     fwrite(arena->base, arena->used, 1, out);
 }
 
+void BuildTextureAsset(void* texel, u32 width, u32 height, FILE* out, MemoryArena* arena)
+{
+    AssetHeader* header = PUSH_TYPE(arena, AssetHeader);
+    header->magicNumber = U32CODE('h', 'z', 'a', 'f');
+    header->version = 0;
+    header->asset.type = AssetType::Texture;
+    header->asset.texture.width = width;
+    header->asset.texture.height = height;
+    header->asset.texture.texel = PUSH_ARRAY(arena, u32, width * height);
+    memcpy(header->asset.texture.texel, texel, sizeof(u32) * width * height);
+    header->asset.texture.texel = MEMORY_TO_FILE_ADDRESS(arena->base, header->asset.texture.texel, u32);
+    fwrite(arena->base, arena->used, 1, out);
+}
+
 int main(int argc, char const* argv[])
 {
     printf("Packing %s -> %s\n", argv[1], argv[2]);
@@ -277,16 +289,7 @@ int main(int argc, char const* argv[])
         }
         else if (texel)
         {
-            AssetHeader* header = PUSH_TYPE(&arena, AssetHeader);
-            header->magicNumber = U32CODE('h', 'z', 'a', 'f');
-            header->version = 0;
-            header->asset.type = AssetType::Texture;
-            header->asset.texture.width = width;
-            header->asset.texture.height = height;
-            header->asset.texture.texel = PUSH_ARRAY(&arena, u32, width * height);
-            memcpy(header->asset.texture.texel, texel, sizeof(u32) * width * height);
-            header->asset.texture.texel = MEMORY_TO_FILE_ADDRESS(&arena.base, header->asset.texture.texel, u32);
-            fwrite(arena.base, arena.used, 1, out);
+            BuildTextureAsset(texel, width, height, out, &arena);
             fclose(out);
         }
         else
