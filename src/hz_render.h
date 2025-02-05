@@ -53,11 +53,16 @@ struct LoadedModel
 {
     u32 meshCount;
     LoadedMesh* meshes;
-    u32 matCount;
-    Texture* mats;
     u32 boneCount;
     Bone* bones;
     Mat4 globalInverseTransform;
+};
+
+struct Material
+{
+    Color color;
+    u32 textureCount;
+    u32* textureId;
 };
 
 struct Transform
@@ -125,19 +130,19 @@ struct RenderCommandClear
     Color color;
 };
 
+
 struct RenderCommandModel
 {
     Camera* camera;
     u32 modelId;
+    Material mat;
     u32 boneCount;
     Bone* bones;
     Mat4 globalInverseTransform;
-    Color color;
     Mat4 transform;
     NodeTransform* nodeTransforms;
     u32 channelCount;
 };
-
 
 // Implementation
 
@@ -164,12 +169,12 @@ void PushRenderClear(RenderGroup* renderGroup, Color color)
     command->color = color;
 }
 
-void PushRenderModel(RenderGroup* renderGroup, Camera* camera, u32 modelId, Color color, Mat4 transform, u32 boneCount, Bone* bones, Mat4 globalInverseTransform, u32 tranCount, NodeTransform* trans)
+void PushRenderModel(RenderGroup* renderGroup, Camera* camera, u32 modelId, Material mat, Mat4 transform, u32 boneCount, Bone* bones, Mat4 globalInverseTransform, u32 tranCount, NodeTransform* trans)
 {
     RenderCommandModel* command = PUSH_RENDER_ELEMENT(renderGroup, RenderCommandModel);
     command->camera = camera;
     command->modelId = modelId;
-    command->color = color;
+    command->mat = mat;
     command->transform = transform;
     command->boneCount = boneCount;
     command->bones = bones;

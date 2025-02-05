@@ -84,9 +84,9 @@ void BuildModelAsset(const aiScene* scene, const char* inPath, FILE* out, Memory
 
     LoadedModel* loadedModel = &header->asset.loadedModel;
     loadedModel->meshCount = scene->mNumMeshes;
-    loadedModel->matCount = scene->mNumMaterials;
+    // loadedModel->matCount = scene->mNumMaterials;
     loadedModel->meshes = PUSH_ARRAY(arena, LoadedMesh, loadedModel->meshCount);
-    loadedModel->mats = PUSH_ARRAY(arena, Texture, loadedModel->matCount);
+    // loadedModel->mats = PUSH_ARRAY(arena, Texture, loadedModel->matCount);
     loadedModel->bones = (Bone*)((u64)arena->base + (u64)arena->used);
     loadedModel->globalInverseTransform = *(Mat4*)(&scene->mRootNode->mTransformation.Inverse());
 
@@ -116,11 +116,11 @@ void BuildModelAsset(const aiScene* scene, const char* inPath, FILE* out, Memory
                 {
                     texel = stbi_load(strcat(fullPath, path.C_Str()), &x, &y, &comp, req_comp);
                 }
-                loadedModel->mats[i].width = x;
-                loadedModel->mats[i].height = y;
-                loadedModel->mats[i].texel = PUSH_ARRAY(arena, u32, x * y);
-                memcpy(loadedModel->mats[i].texel, texel, sizeof(u32) * x * y);
-                loadedModel->mats[i].texel = MEMORY_TO_FILE_ADDRESS(arena->base, loadedModel->mats[i].texel, u32);
+                // loadedModel->mats[i].width = x;
+                // loadedModel->mats[i].height = y;
+                // loadedModel->mats[i].texel = PUSH_ARRAY(arena, u32, x * y);
+                // memcpy(loadedModel->mats[i].texel, texel, sizeof(u32) * x * y);
+                // loadedModel->mats[i].texel = MEMORY_TO_FILE_ADDRESS(arena->base, loadedModel->mats[i].texel, u32);
             }
         }
     }
@@ -176,14 +176,14 @@ void BuildModelAsset(const aiScene* scene, const char* inPath, FILE* out, Memory
     for (u32 i = 0; i < loadedModel->meshCount; ++i)
     {
         LoadedMesh* mesh = &loadedModel->meshes[i];
-        mesh->vertices = MEMORY_TO_FILE_ADDRESS(arena->base, mesh->vertices, Vert);
-        mesh->indices = MEMORY_TO_FILE_ADDRESS(arena->base, mesh->indices, u32);
+        MEMORY_TO_FILE_ADDRESS(arena->base, mesh->vertices, Vert);
+        MEMORY_TO_FILE_ADDRESS(arena->base, mesh->indices, u32);
     }
 
 
-    loadedModel->bones = MEMORY_TO_FILE_ADDRESS(arena->base, loadedModel->bones, Bone);
-    loadedModel->mats = MEMORY_TO_FILE_ADDRESS(arena->base, loadedModel->mats, Texture);
-    loadedModel->meshes = MEMORY_TO_FILE_ADDRESS(arena->base, loadedModel->meshes, LoadedMesh);
+    MEMORY_TO_FILE_ADDRESS(arena->base, loadedModel->bones, Bone);
+    // loadedModel->mats = MEMORY_TO_FILE_ADDRESS(arena->base, loadedModel->mats, Texture);
+    MEMORY_TO_FILE_ADDRESS(arena->base, loadedModel->meshes, LoadedMesh);
 
     header->asset.animCount = scene->mNumAnimations;
     header->asset.animations = PUSH_ARRAY(arena, Animation, header->asset.animCount);
@@ -227,13 +227,13 @@ void BuildModelAsset(const aiScene* scene, const char* inPath, FILE* out, Memory
                 nodeAnim->scalingKeys[keyIndex].value = *((Vec3*)&aiNodeAnim->mScalingKeys[keyIndex].mValue);
             }
 
-            nodeAnim->positionKeys = MEMORY_TO_FILE_ADDRESS(arena->base, nodeAnim->positionKeys, Vec3Key);
-            nodeAnim->rotationKeys = MEMORY_TO_FILE_ADDRESS(arena->base, nodeAnim->rotationKeys, QuatKey);
-            nodeAnim->scalingKeys = MEMORY_TO_FILE_ADDRESS(arena->base, nodeAnim->scalingKeys, Vec3Key);
+            MEMORY_TO_FILE_ADDRESS(arena->base, nodeAnim->positionKeys, Vec3Key);
+            MEMORY_TO_FILE_ADDRESS(arena->base, nodeAnim->rotationKeys, QuatKey);
+            MEMORY_TO_FILE_ADDRESS(arena->base, nodeAnim->scalingKeys, Vec3Key);
         }
-        animations[i].channels = MEMORY_TO_FILE_ADDRESS(arena->base, animations[i].channels, NodeAnim);
+        MEMORY_TO_FILE_ADDRESS(arena->base, animations[i].channels, NodeAnim);
     }
-    header->asset.animations = MEMORY_TO_FILE_ADDRESS(arena->base, header->asset.animations, Animation);
+    MEMORY_TO_FILE_ADDRESS(arena->base, header->asset.animations, Animation);
 
     fwrite(arena->base, arena->used, 1, out);
 }
@@ -248,7 +248,7 @@ void BuildTextureAsset(void* texel, u32 width, u32 height, FILE* out, MemoryAren
     header->asset.texture.height = height;
     header->asset.texture.texel = PUSH_ARRAY(arena, u32, width * height);
     memcpy(header->asset.texture.texel, texel, sizeof(u32) * width * height);
-    header->asset.texture.texel = MEMORY_TO_FILE_ADDRESS(arena->base, header->asset.texture.texel, u32);
+    MEMORY_TO_FILE_ADDRESS(arena->base, header->asset.texture.texel, u32);
     fwrite(arena->base, arena->used, 1, out);
 }
 

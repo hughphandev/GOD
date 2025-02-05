@@ -48,6 +48,8 @@ HPI void Init(GameState* state, RenderGroup* renderGroup, GameMemory* gameMemory
     state->assets[(int)GameAsset::Cube] = LoadAsset("asset\\cube.hza", &gameMemory->persistantArena);
     state->assets[(int)GameAsset::Sphere] = LoadAsset("asset\\sphere.hza", &gameMemory->persistantArena);
     state->assets[(int)GameAsset::CubeRig] = LoadAsset("asset\\cube-rig.hza", &gameMemory->persistantArena);
+    state->assets[(int)GameAsset::BrickTexture] = LoadAsset("asset\\brick-texture-2106361449.hza", &gameMemory->persistantArena);
+    state->assets[(int)GameAsset::SpidyTexture] = LoadAsset("asset\\Char_GhostSpider_D.hza", &gameMemory->persistantArena);
 
     state->player = CreateEntity({ 0, 0.5f, 0 }, {}, { 1, 1, 1 }, GameAsset::Cube, state);
     state->player->animIndex = 0;
@@ -177,6 +179,11 @@ HPI void Update(GameState* state, RenderGroup* renderGroup, GameMemory* gameMemo
 
     PushRenderClear(renderGroup, { 0.5f, 0.5f, 0.5f, 1.0f });
 
+    Material brickMat = {};
+    brickMat.color = { 1, 1, 1, 1 };
+    brickMat.textureCount = 1;
+    brickMat.textureId = &state->assets[(int)GameAsset::BrickTexture].id;
+
     for (int i = 0; i < ARRAY_COUNT(state->entities); ++i)
     {
         Entity entity = state->entities[i];
@@ -185,12 +192,12 @@ HPI void Update(GameState* state, RenderGroup* renderGroup, GameMemory* gameMemo
             Asset asset = state->assets[(int)entity.gfx];
             if (entity.animIndex == INVALID_VALUE)
             {
-                PushRenderModel(renderGroup, &state->camera[(int)state->gameMode], asset.id, { 1.0f, 1.0f, 1.0f, 1.0f }, TRS(entity.transform.position, entity.transform.rotation, entity.transform.scale), 0, NULL, {}, 0, NULL);
+                PushRenderModel(renderGroup, &state->camera[(int)state->gameMode], asset.id, brickMat, TRS(entity.transform.position, entity.transform.rotation, entity.transform.scale), 0, NULL, {}, 0, NULL);
             }
             else
             {
                 NodeTransform* trans = ReadNodeTransform(asset.animations[entity.animIndex], entity.normalizedTime, &gameMemory->transientArena);
-                PushRenderModel(renderGroup, &state->camera[(int)state->gameMode], asset.id, { 1.0f, 1.0f, 1.0f, 1.0f }, Translate(state->player->transform.position), asset.loadedModel.boneCount, asset.loadedModel.bones, asset.loadedModel.globalInverseTransform, asset.animations[entity.animIndex].channelCount, trans);
+                PushRenderModel(renderGroup, &state->camera[(int)state->gameMode], asset.id, brickMat, Translate(state->player->transform.position), asset.loadedModel.boneCount, asset.loadedModel.bones, asset.loadedModel.globalInverseTransform, asset.animations[entity.animIndex].channelCount, trans);
             }
 
         }

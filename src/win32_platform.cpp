@@ -36,8 +36,11 @@ struct Win32Model
     bool isValid;
     u32 meshCount;
     Win32Mesh* meshes;
-    u32 shaderResCount;
-    ID3D11ShaderResourceView** shaderRes;
+};
+struct Win32Texture
+{
+    bool isValid;
+    ID3D11ShaderResourceView* shaderRes;
 };
 
 struct Win32D3D11
@@ -52,6 +55,8 @@ struct Win32D3D11
     //TODO: test code
 #define MAX_MODEL_COUNT 256
     Win32Model models[MAX_MODEL_COUNT];
+#define MAX_TEXTURE_COUNT 8
+    Win32Texture textures[MAX_TEXTURE_COUNT];
 
     ID3D11Buffer* vsPerFrame;
     ID3D11Buffer* psPerFrame;
@@ -211,48 +216,61 @@ static u32 Win32LoadModel(Win32D3D11* d3d11, LoadedModel initialModel, MemoryAre
     win32Model->meshCount = initialModel.meshCount;
     win32Model->meshes = PUSH_ARRAY(arena, Win32Mesh, initialModel.meshCount);
 
-    win32Model->shaderResCount = initialModel.matCount;
-    win32Model->shaderRes = PUSH_ARRAY(arena, ID3D11ShaderResourceView*, win32Model->shaderResCount);
-    for (u32 i = 0; i < initialModel.matCount; ++i)
-    {
-        if (initialModel.mats[i].width > 0 && initialModel.mats[i].height > 0)
-        {
-            D3D11_TEXTURE2D_DESC textureDesc = {};
-            textureDesc.Width = initialModel.mats[i].width;
-            textureDesc.Height = initialModel.mats[i].height;
-            textureDesc.MipLevels = 1;
-            textureDesc.ArraySize = 1;
-            textureDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-            textureDesc.SampleDesc.Count = 1;
-            textureDesc.SampleDesc.Quality = 0;
-            textureDesc.Usage = D3D11_USAGE_IMMUTABLE;
-            textureDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
-            textureDesc.CPUAccessFlags = 0;
-            textureDesc.MiscFlags = 0;
-
-            D3D11_SUBRESOURCE_DATA initData = {};
-            initData.pSysMem = initialModel.mats[i].texel;
-            initData.SysMemPitch = sizeof(*initialModel.mats[i].texel) * initialModel.mats[i].width;
-            initData.SysMemSlicePitch = sizeof(*initialModel.mats[i].texel) * initialModel.mats[i].width * initialModel.mats[i].height;
-
-            ID3D11Texture2D* tex = nullptr;
-            d3d11->device->CreateTexture2D(&textureDesc, &initData, &tex);
-
-            D3D11_SHADER_RESOURCE_VIEW_DESC resDesc;
-            resDesc.Format = textureDesc.Format;
-            resDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
-            resDesc.Texture2D.MostDetailedMip = 0;
-            resDesc.Texture2D.MipLevels = 1;
-            d3d11->device->CreateShaderResourceView(tex, &resDesc, &win32Model->shaderRes[i]);
-        }
-    }
-
     for (u32 i = 0; i < initialModel.meshCount; ++i)
     {
         win32Model->meshes[i] = Win32LoadMesh(d3d11, initialModel.meshes[i]);
     }
     return result;
 }
+
+static u32 Win32LoadTexture(Win32D3D11* d3d11, Texture texture, MemoryArena* arena)
+{
+    u32 result = INVALID_VALUE;
+    for (int i = 0; i < MAX_MODEL_COUNT; ++i)
+    {
+        if (!d3d11->textures[i].isValid)
+        {
+            result = i;
+            break;
+        }
+    }
+    ASSERT(result != INVALID_VALUE);
+
+    Win32Texture* win32Texture = &d3d11->textures[result];
+    win32Texture->shaderRes = PUSH_TYPE(arena, ID3D11ShaderResourceView);
+    if (texture.width > 0 && texture.height > 0)
+    {
+        D3D11_TEXTURE2D_DESC textureDesc = {};
+        textureDesc.Width = texture.width;
+        textureDesc.Height = texture.height;
+        textureDesc.MipLevels = 1;
+        textureDesc.ArraySize = 1;
+        textureDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+        textureDesc.SampleDesc.Count = 1;
+        textureDesc.SampleDesc.Quality = 0;
+        textureDesc.Usage = D3D11_USAGE_IMMUTABLE;
+        textureDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+        textureDesc.CPUAccessFlags = 0;
+        textureDesc.MiscFlags = 0;
+
+        D3D11_SUBRESOURCE_DATA initData = {};
+        initData.pSysMem = texture.texel;
+        initData.SysMemPitch = sizeof(*texture.texel) * texture.width;
+        initData.SysMemSlicePitch = sizeof(*texture.texel) * texture.width * texture.height;
+
+        ID3D11Texture2D* tex = nullptr;
+        d3d11->device->CreateTexture2D(&textureDesc, &initData, &tex);
+
+        D3D11_SHADER_RESOURCE_VIEW_DESC resDesc;
+        resDesc.Format = textureDesc.Format;
+        resDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+        resDesc.Texture2D.MostDetailedMip = 0;
+        resDesc.Texture2D.MipLevels = 1;
+        d3d11->device->CreateShaderResourceView(tex, &resDesc, &win32Texture->shaderRes);
+    }
+    return result;
+}
+
 
 static void Win32InitScene(GameState* gameState, RenderGroup* renderGroup, Win32D3D11* d3d11, GameMemory* gameMemory, HWND windowHandle)
 {
@@ -407,6 +425,9 @@ static void Win32InitScene(GameState* gameState, RenderGroup* renderGroup, Win32
                 case AssetType::Model:
                     gameState->assets[i].id = Win32LoadModel(d3d11, gameState->assets[i].loadedModel, &gameMemory->persistantArena);
                     break;
+                case AssetType::Texture:
+                    gameState->assets[i].id = Win32LoadTexture(d3d11, gameState->assets[i].texture, &gameMemory->persistantArena);
+                    break;
 
                 default:
                     break;
@@ -499,7 +520,7 @@ static void Win32RenderOutput(RenderGroup* renderGroup, Win32D3D11 d3d11)
                         d3d11.deviceContext->Map(model.meshes[i].psPerInstance, 0, D3D11_MAP_WRITE_DISCARD, 0, &subRes);
 
                         PSPerInstance* psPerInstance = (PSPerInstance*)subRes.pData;
-                        psPerInstance->color = entry->color;
+                        psPerInstance->color = entry->mat.color;
 
                         d3d11.deviceContext->Unmap(model.meshes[i].psPerInstance, 0);
                     }
@@ -511,7 +532,7 @@ static void Win32RenderOutput(RenderGroup* renderGroup, Win32D3D11 d3d11)
                     d3d11.deviceContext->IASetVertexBuffers(0, 1, &model.meshes[i].vertexBuffer, model.meshes[i].stride, model.meshes[i].offset);
                     d3d11.deviceContext->IASetIndexBuffer(model.meshes[i].indexBuffer, DXGI_FORMAT_R32_UINT, 0);
                     d3d11.deviceContext->IASetInputLayout(model.meshes[i].inputLayout);
-                    d3d11.deviceContext->PSSetShaderResources(0, 1, &model.shaderRes[model.meshes[i].shaderResIndex]);
+                    d3d11.deviceContext->PSSetShaderResources(0, 1, &d3d11.textures[entry->mat.textureId[model.meshes[i].shaderResIndex]].shaderRes);
                     d3d11.deviceContext->PSSetSamplers(0, 1, &model.meshes[i].samplerState);
                     d3d11.deviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
                     d3d11.deviceContext->OMSetRenderTargets(1, &d3d11.renderTargetView, d3d11.depthStencilView);

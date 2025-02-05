@@ -60,6 +60,9 @@ enum class GameAsset
     Cube,
     Sphere,
     CubeRig,
+    BrickTexture,
+    SpidyTexture,
+
     TERMINATOR,
 };
 
