@@ -24,7 +24,7 @@ File ReadFile(const char* fileName, MemoryArena* arena)
         LARGE_INTEGER fileSize;
         if (GetFileSizeEx(fileHandle, &fileSize))
         {
-            uint32_t fileSize32 = SafeTruncateUInt64(fileSize.QuadPart);
+            u32 fileSize32 = SafeTruncateUInt64(fileSize.QuadPart);
             result.content = (char*)PUSH_SIZE(arena, fileSize32);
             if (result.content)
             {

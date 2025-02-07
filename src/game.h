@@ -60,6 +60,7 @@ enum class GameAsset
     Cube,
     Sphere,
     CubeRig,
+    DefaultTexture,
     BrickTexture,
     SpidyTexture,
 
@@ -71,6 +72,7 @@ struct Entity
     Transform transform;
     Box collider;
     GameAsset gfx;
+    Material mat;
     u32 animIndex;
     f32 normalizedTime;
     bool isEnabled;

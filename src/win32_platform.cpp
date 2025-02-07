@@ -204,6 +204,7 @@ static u32 Win32LoadModel(Win32D3D11* d3d11, LoadedModel initialModel, MemoryAre
     {
         if (!d3d11->models[i].isValid)
         {
+            d3d11->models[i].isValid = true;
             result = i;
             break;
         }
@@ -226,10 +227,11 @@ static u32 Win32LoadModel(Win32D3D11* d3d11, LoadedModel initialModel, MemoryAre
 static u32 Win32LoadTexture(Win32D3D11* d3d11, Texture texture, MemoryArena* arena)
 {
     u32 result = INVALID_VALUE;
-    for (int i = 0; i < MAX_MODEL_COUNT; ++i)
+    for (int i = 0; i < MAX_TEXTURE_COUNT; ++i)
     {
         if (!d3d11->textures[i].isValid)
         {
+            d3d11->textures[i].isValid = true;
             result = i;
             break;
         }
@@ -492,7 +494,7 @@ static void Win32RenderOutput(RenderGroup* renderGroup, Win32D3D11 d3d11)
                         vsPerInstance->mvp = GetPerspectiveProjection(entry->camera->fovy, entry->camera->aspect, 0.1f, 100.0f) * GetViewMatrix(entry->camera->position, entry->camera->direction, entry->camera->worldUp) * worldTransform;
                         vsPerInstance->model = worldTransform;
                         vsPerInstance->isSkinnedMesh = entry->boneCount > 0;
-                        ZeroSize(vsPerInstance->bones, sizeof(vsPerInstance->bones));
+                        MemSet(vsPerInstance->bones, 0, sizeof(vsPerInstance->bones));
                         for (u32 boneIndex = 0; boneIndex < entry->boneCount; ++boneIndex)
                         {
                             Mat4 transform = MAT4_IDENTITY;
@@ -532,7 +534,14 @@ static void Win32RenderOutput(RenderGroup* renderGroup, Win32D3D11 d3d11)
                     d3d11.deviceContext->IASetVertexBuffers(0, 1, &model.meshes[i].vertexBuffer, model.meshes[i].stride, model.meshes[i].offset);
                     d3d11.deviceContext->IASetIndexBuffer(model.meshes[i].indexBuffer, DXGI_FORMAT_R32_UINT, 0);
                     d3d11.deviceContext->IASetInputLayout(model.meshes[i].inputLayout);
-                    d3d11.deviceContext->PSSetShaderResources(0, 1, &d3d11.textures[entry->mat.textureId[model.meshes[i].shaderResIndex]].shaderRes);
+                    if (entry->mat.textureId)
+                    {
+                        d3d11.deviceContext->PSSetShaderResources(0, 1, &d3d11.textures[entry->mat.textureId[model.meshes[i].shaderResIndex]].shaderRes);
+                    }
+                    else
+                    {
+                        d3d11.deviceContext->PSSetShaderResources(0, 1, &d3d11.textures[0].shaderRes);
+                    }
                     d3d11.deviceContext->PSSetSamplers(0, 1, &model.meshes[i].samplerState);
                     d3d11.deviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
                     d3d11.deviceContext->OMSetRenderTargets(1, &d3d11.renderTargetView, d3d11.depthStencilView);

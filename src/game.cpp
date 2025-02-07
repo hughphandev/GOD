@@ -1,7 +1,7 @@
 #include "game.h"
 #include "hz_io.h"
 
-Entity* CreateEntity(Vec3 pos, Quaternion rot, Vec3 scale, GameAsset gfx, GameState* state)
+Entity* CreateEntity(Vec3 pos, Quaternion rot, Vec3 scale, GameAsset gfx, Material mat, GameState* state)
 {
     for (u32 i = 0; i < ARRAY_COUNT(state->entities); ++i)
     {
@@ -14,6 +14,7 @@ Entity* CreateEntity(Vec3 pos, Quaternion rot, Vec3 scale, GameAsset gfx, GameSt
             state->entities[i].collider.position = pos;
             state->entities[i].collider.extents = 0.5f * scale;
             state->entities[i].gfx = gfx;
+            state->entities[i].mat = mat;
             state->entities[i].animIndex = INVALID_VALUE;
             return &state->entities[i];
         }
@@ -48,10 +49,21 @@ HPI void Init(GameState* state, RenderGroup* renderGroup, GameMemory* gameMemory
     state->assets[(int)GameAsset::Cube] = LoadAsset("asset\\cube.hza", &gameMemory->persistantArena);
     state->assets[(int)GameAsset::Sphere] = LoadAsset("asset\\sphere.hza", &gameMemory->persistantArena);
     state->assets[(int)GameAsset::CubeRig] = LoadAsset("asset\\cube-rig.hza", &gameMemory->persistantArena);
+    state->assets[(int)GameAsset::DefaultTexture] = GenAssetTexture(GenTexture(1, 1, { 1, 1, 1, 1 }, &gameMemory->persistantArena));
     state->assets[(int)GameAsset::BrickTexture] = LoadAsset("asset\\brick-texture-2106361449.hza", &gameMemory->persistantArena);
     state->assets[(int)GameAsset::SpidyTexture] = LoadAsset("asset\\Char_GhostSpider_D.hza", &gameMemory->persistantArena);
 
-    state->player = CreateEntity({ 0, 0.5f, 0 }, {}, { 1, 1, 1 }, GameAsset::Cube, state);
+    Material brickMat = {};
+    brickMat.color = { 1, 1, 1, 1 };
+    brickMat.textureCount = 1;
+    brickMat.textureId = 0;
+
+    Material spidyMat = {};
+    spidyMat.color = { 1, 1, 1, 1 };
+    spidyMat.textureCount = 1;
+    spidyMat.textureId = &state->assets[(int)GameAsset::SpidyTexture].id;
+
+    state->player = CreateEntity({ 0, 0.5f, 0 }, {}, { 1, 1, 1 }, GameAsset::Cube, spidyMat, state);
     state->player->animIndex = 0;
 
     Vec3 dirs[] =
@@ -63,7 +75,6 @@ HPI void Init(GameState* state, RenderGroup* renderGroup, GameMemory* gameMemory
     };
 
     Vec3 current = { 0, -0.5f, 0 };
-    CreateEntity({}, {}, { 1, 1, 1 }, GameAsset::Cube, state);
     srand(10);
     for (int i = 0; i < 500;)
     {
@@ -78,12 +89,10 @@ HPI void Init(GameState* state, RenderGroup* renderGroup, GameMemory* gameMemory
         }
         if (!exists)
         {
-            CreateEntity(current, {}, { 1, 1, 1 }, GameAsset::Cube, state);
+            CreateEntity(current, {}, { 1, 1, 1 }, GameAsset::Cube, brickMat, state);
             ++i;
         }
     }
-    CreateEntity({ 5, 0.5f, 5 }, {}, { 1, 1, 1 }, GameAsset::Cube, state);
-    CreateEntity({ 2, 2, 2 }, {}, { 1, 1, 1 }, GameAsset::Sphere, state);
 }
 
 HPI void Update(GameState* state, RenderGroup* renderGroup, GameMemory* gameMemory)
@@ -118,13 +127,25 @@ HPI void Update(GameState* state, RenderGroup* renderGroup, GameMemory* gameMemo
             {
                 state->player->transform.position.x += state->dt * speed;
             }
+            if (state->input.space.isDown)
+            {
+                state->player->transform.position.y += state->dt * speed;
+            }
+            else
+            {
+                //TODO: gravity
+                if (state->player->transform.position.y > 0.5f)
+                {
+                    state->player->transform.position.y -= 9.8f * state->dt;
+                }
+            }
             state->player->collider.position = state->player->transform.position;
 
             for (int i = 0; i < ARRAY_COUNT(state->entities); ++i)
             {
                 if (state->player != &state->entities[i])
                 {
-                    Box col = UnionBox(state->player->collider, state->entities[i].collider);
+                    Box col = IntersectBox(state->player->collider, state->entities[i].collider);
                     if (col.extents > EPSILON)
                     {
                         int minIndex = 0;
@@ -132,7 +153,7 @@ HPI void Update(GameState* state, RenderGroup* renderGroup, GameMemory* gameMemo
                         {
                             if (col.extents.elements[minIndex] > col.extents.elements[index]) minIndex = index;
                         }
-                        state->player->transform.position.elements[minIndex] += 2 * (col.position.elements[minIndex] > state->entities[i].collider.position.elements[minIndex] ? col.extents.elements[minIndex] : -col.extents.elements[minIndex]);
+                        state->player->transform.position.elements[minIndex] += (col.position.elements[minIndex] > state->entities[i].collider.position.elements[minIndex] ? col.extents.elements[minIndex] : -col.extents.elements[minIndex]);
                         state->player->collider.position = state->player->transform.position;
                     }
                 }
@@ -179,10 +200,6 @@ HPI void Update(GameState* state, RenderGroup* renderGroup, GameMemory* gameMemo
 
     PushRenderClear(renderGroup, { 0.5f, 0.5f, 0.5f, 1.0f });
 
-    Material brickMat = {};
-    brickMat.color = { 1, 1, 1, 1 };
-    brickMat.textureCount = 1;
-    brickMat.textureId = &state->assets[(int)GameAsset::BrickTexture].id;
 
     for (int i = 0; i < ARRAY_COUNT(state->entities); ++i)
     {
@@ -192,12 +209,12 @@ HPI void Update(GameState* state, RenderGroup* renderGroup, GameMemory* gameMemo
             Asset asset = state->assets[(int)entity.gfx];
             if (entity.animIndex == INVALID_VALUE)
             {
-                PushRenderModel(renderGroup, &state->camera[(int)state->gameMode], asset.id, brickMat, TRS(entity.transform.position, entity.transform.rotation, entity.transform.scale), 0, NULL, {}, 0, NULL);
+                PushRenderModel(renderGroup, &state->camera[(int)state->gameMode], asset.id, entity.mat, TRS(entity.transform.position, entity.transform.rotation, entity.transform.scale), 0, NULL, {}, 0, NULL);
             }
             else
             {
                 NodeTransform* trans = ReadNodeTransform(asset.animations[entity.animIndex], entity.normalizedTime, &gameMemory->transientArena);
-                PushRenderModel(renderGroup, &state->camera[(int)state->gameMode], asset.id, brickMat, Translate(state->player->transform.position), asset.loadedModel.boneCount, asset.loadedModel.bones, asset.loadedModel.globalInverseTransform, asset.animations[entity.animIndex].channelCount, trans);
+                PushRenderModel(renderGroup, &state->camera[(int)state->gameMode], asset.id, entity.mat, Translate(state->player->transform.position), asset.loadedModel.boneCount, asset.loadedModel.bones, asset.loadedModel.globalInverseTransform, asset.animations[entity.animIndex].channelCount, trans);
             }
 
         }

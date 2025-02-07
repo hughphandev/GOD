@@ -3,6 +3,10 @@
 
 #include "hz_types.h"
 
+//TODO: remove maybe!
+#include "string.h"
+#include "stdio.h"
+
 #define LAMBDA(return_type, function_body) \
 ({ \
       return_type __fn__ function_body \
@@ -69,16 +73,14 @@ f32 Max(f32* value, int count)
   return result;
 }
 
-#include <string.h>
-
 void Memcpy(void* dest, void* src, size_t size)
 {
   memcpy(dest, src, size);
 }
 
-void ZeroSize(void* mem, size_t size)
+void MemSet(void* mem, int val, size_t size)
 {
-  memset(mem, 0, size);
+  memset(mem, val, size);
 }
 
 inline s32 StrToI(char* str, char** pStr)
@@ -164,8 +166,6 @@ inline char* Copy(char* des, const char* src, int count)
 {
   return strncpy(des, src, count);
 }
-
-#include <stdio.h>
 
 #ifdef DEBUG
 #define LOGINFO(string, ...) fprintf(stdout, string, __VA_ARGS__);

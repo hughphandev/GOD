@@ -57,4 +57,24 @@ Asset LoadAsset(char* fileName, MemoryArena* arena)
     }
     return result;
 }
+
+Texture GenTexture(u32 width, u32 height, Color color, MemoryArena* arena)
+{
+    Texture result = {};
+    result.width = width;
+    result.height = height;
+    result.texel = PUSH_ARRAY(arena, u32, width * height);
+    MemSet(result.texel, ToU32Color(color), width * height * sizeof(u32));
+    return result;
+}
+
+Asset GenAssetTexture(Texture texture)
+{
+    Asset result = {};
+    result.type = AssetType::Texture;
+    result.id = INVALID_VALUE;
+    result.type = AssetType::Texture;
+    result.texture = texture;
+    return result;
+}
 #endif

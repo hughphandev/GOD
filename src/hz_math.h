@@ -4,6 +4,9 @@
 #include "hz_types.h"
 #include "hz_utils.h"
 
+//TODO: remove maybe!
+#include <math.h>
+
 #define DEFINE_LERP(T) T Lerp(T a, T b, f32 t) { return (a + ((b - a) * t)); }
 #ifndef EPSILON 
 #define EPSILON 0.00001f
@@ -111,9 +114,6 @@ union Rect
 };
 
 // Implementation
-
-//TODO: Use math.h for now. Switch to platform efficient code in the future!
-#include <math.h>
 
 inline f32 Floor(f32 value)
 {
