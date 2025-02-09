@@ -50,9 +50,15 @@ enum class GameMode
     TERMINATOR,
 };
 
+typedef void UpdateMesh(Renderer* renderContext, u32 modelId, u32 meshId, LoadedMesh mesh);
+typedef u32 UploadModel(Renderer* renderContext, LoadedModel initialModel, MemoryArena* arena);
+typedef u32 UploadTexture(Renderer* renderContext, Texture texture, MemoryArena* arena);
+
 struct GameAPI
 {
-
+    UpdateMesh* UpdateMesh;
+    UploadModel* UploadModel;
+    UploadTexture* UploadTexture;
 };
 
 enum class GameAsset
@@ -81,8 +87,7 @@ struct Entity
 struct GameState
 {
     bool running = true;
-    char* tittle;
-    int width, height;
+    u32 width, height;
 
     Entity entities[1000];
     Entity* player;
@@ -104,6 +109,9 @@ struct GameState
 
     float dt;
     float t;
+
+    //TODO: refactor
+    Vec3 offset;
 };
 
 

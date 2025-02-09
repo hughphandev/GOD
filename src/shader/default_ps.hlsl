@@ -29,7 +29,7 @@ PSOut ps_main(VSOut input) {
   intensity = floor(intensity);
   intensity = intensity * 0.9; 
   intensity = remap(0, 2, 0.3, 1, intensity);
-  float4 tint = (diffuse * intensity);
+  float4 tint = color * (diffuse * intensity);
   output.color = meshTexture.Sample(MeshTextureSampler, input.uv) * tint;
   // float4 weightColor = float4(0, 0, 1, 1);
   // for(int i = 0; i < 4; ++i)

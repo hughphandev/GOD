@@ -1,5 +1,6 @@
-#include "game.h"
 #include "hz_io.h"
+#include "hz_world.h"
+#include "game.h"
 
 Entity* CreateEntity(Vec3 pos, Quaternion rot, Vec3 scale, GameAsset gfx, Material mat, GameState* state)
 {
@@ -30,9 +31,7 @@ void Destroy(Entity* entity)
 HPI void Init(GameState* state, RenderGroup* renderGroup, GameMemory* gameMemory)
 {
     state->running = true;
-    state->tittle = "GOD";
-    state->width = 1280;
-    state->height = 720;
+
 
     for (int i = 0; i < (int)GameMode::TERMINATOR; ++i)
     {
@@ -46,12 +45,16 @@ HPI void Init(GameState* state, RenderGroup* renderGroup, GameMemory* gameMemory
     state->gameMode = GameMode::InGame;
     state->dt = 1 / 60.0f;
 
+    // state->assets[(int)GameAsset::Sphere] = LoadAsset("asset\\sphere.hza", &gameMemory->persistantArena);
+    // state->assets[(int)GameAsset::CubeRig] = LoadAsset("asset\\cube-rig.hza", &gameMemory->persistantArena);
+    // state->assets[(int)GameAsset::DefaultTexture] = GenAssetTexture(GenTexture(1, 1, { 1, 1, 1, 1 }, &gameMemory->persistantArena));
+    // state->assets[(int)GameAsset::BrickTexture] = LoadAsset("asset\\brick-texture-2106361449.hza", &gameMemory->persistantArena);
+    // state->assets[(int)GameAsset::SpidyTexture] = LoadAsset("asset\\Char_GhostSpider_D.hza", &gameMemory->persistantArena);
+
     state->assets[(int)GameAsset::Cube] = LoadAsset("asset\\cube.hza", &gameMemory->persistantArena);
-    state->assets[(int)GameAsset::Sphere] = LoadAsset("asset\\sphere.hza", &gameMemory->persistantArena);
-    state->assets[(int)GameAsset::CubeRig] = LoadAsset("asset\\cube-rig.hza", &gameMemory->persistantArena);
+    state->assets[(int)GameAsset::Cube].id = state->api.UploadModel(renderGroup->renderer, state->assets[(int)GameAsset::Cube].loadedModel, &gameMemory->persistantArena);
     state->assets[(int)GameAsset::DefaultTexture] = GenAssetTexture(GenTexture(1, 1, { 1, 1, 1, 1 }, &gameMemory->persistantArena));
-    state->assets[(int)GameAsset::BrickTexture] = LoadAsset("asset\\brick-texture-2106361449.hza", &gameMemory->persistantArena);
-    state->assets[(int)GameAsset::SpidyTexture] = LoadAsset("asset\\Char_GhostSpider_D.hza", &gameMemory->persistantArena);
+    state->assets[(int)GameAsset::DefaultTexture].id = state->api.UploadTexture(renderGroup->renderer, state->assets[(int)GameAsset::DefaultTexture].texture, &gameMemory->persistantArena);
 
     Material brickMat = {};
     brickMat.color = { 1, 1, 1, 1 };
@@ -63,8 +66,8 @@ HPI void Init(GameState* state, RenderGroup* renderGroup, GameMemory* gameMemory
     spidyMat.textureCount = 1;
     spidyMat.textureId = &state->assets[(int)GameAsset::SpidyTexture].id;
 
-    state->player = CreateEntity({ 0, 0.5f, 0 }, {}, { 1, 1, 1 }, GameAsset::Cube, spidyMat, state);
-    state->player->animIndex = 0;
+    // state->player = CreateEntity({ 0, 0.5f, 0 }, {}, { 1, 1, 1 }, GameAsset::Cube, spidyMat, state);
+    // state->player->animIndex = 0;
 
     Vec3 dirs[] =
     {
@@ -75,24 +78,6 @@ HPI void Init(GameState* state, RenderGroup* renderGroup, GameMemory* gameMemory
     };
 
     Vec3 current = { 0, -0.5f, 0 };
-    srand(10);
-    for (int i = 0; i < 500;)
-    {
-        current += dirs[rand() % ARRAY_COUNT(dirs)];
-        bool exists = false;
-        for (int j = 0; j < ARRAY_COUNT(state->entities); ++j)
-        {
-            if (state->entities[i].transform.position == current)
-            {
-                exists = true;
-            }
-        }
-        if (!exists)
-        {
-            CreateEntity(current, {}, { 1, 1, 1 }, GameAsset::Cube, brickMat, state);
-            ++i;
-        }
-    }
 }
 
 HPI void Update(GameState* state, RenderGroup* renderGroup, GameMemory* gameMemory)
@@ -110,40 +95,32 @@ HPI void Update(GameState* state, RenderGroup* renderGroup, GameMemory* gameMemo
             state->lockCursor = true;
             state->showCursor = false;
 
-            f32 speed = 1;
+            f32 speed = 10;
             if (state->input.up.isDown)
             {
-                state->player->transform.position.z += state->dt * speed;
+                state->offset.z += state->dt * speed;
             }
             if (state->input.down.isDown)
             {
-                state->player->transform.position.z -= state->dt * speed;
+                state->offset.z -= state->dt * speed;
             }
             if (state->input.left.isDown)
             {
-                state->player->transform.position.x -= state->dt * speed;
+                state->offset.x -= state->dt * speed;
             }
             if (state->input.right.isDown)
             {
-                state->player->transform.position.x += state->dt * speed;
+                state->offset.x += state->dt * speed;
             }
             if (state->input.space.isDown)
             {
-                state->player->transform.position.y += state->dt * speed;
+                state->offset.y += state->dt * speed;
             }
-            else
-            {
-                //TODO: gravity
-                if (state->player->transform.position.y > 0.5f)
-                {
-                    state->player->transform.position.y -= 9.8f * state->dt;
-                }
-            }
-            state->player->collider.position = state->player->transform.position;
+
 
             for (int i = 0; i < ARRAY_COUNT(state->entities); ++i)
             {
-                if (state->player != &state->entities[i])
+                if (state->player && state->player != &state->entities[i])
                 {
                     Box col = IntersectBox(state->player->collider, state->entities[i].collider);
                     if (col.extents > EPSILON)
@@ -195,28 +172,78 @@ HPI void Update(GameState* state, RenderGroup* renderGroup, GameMemory* gameMemo
         INVALID_DEFAULT_CASE
     }
 
-    f32 div = state->t / state->assets[(int)state->player->gfx].animations[state->player->animIndex].duration;
-    state->player->normalizedTime = div - Floor(div);
+    // f32 div = state->t / state->assets[(int)state->player->gfx].animations[state->player->animIndex].duration;
+    // state->player->normalizedTime = div - Floor(div);
 
     PushRenderClear(renderGroup, { 0.5f, 0.5f, 0.5f, 1.0f });
-
-
-    for (int i = 0; i < ARRAY_COUNT(state->entities); ++i)
+#define CHUNKS 10
+    LoadedMesh mesh = {};
+    mesh.transform = MAT4_IDENTITY;
+    mesh.vertices = PUSH_MARK(&gameMemory->transientArena, Vert);
+    u32 trisCount = 0;
+    Material mat = {};
+    mat.textureCount = 1;
+    mat.textureId = 0;
+    for (int x = 0; x < CHUNKS; ++x)
     {
-        Entity entity = state->entities[i];
-        if (entity.isEnabled)
+        for (int y = 0; y < CHUNKS; ++y)
         {
-            Asset asset = state->assets[(int)entity.gfx];
-            if (entity.animIndex == INVALID_VALUE)
+            for (int z = 0; z < CHUNKS; ++z)
             {
-                PushRenderModel(renderGroup, &state->camera[(int)state->gameMode], asset.id, entity.mat, TRS(entity.transform.position, entity.transform.rotation, entity.transform.scale), 0, NULL, {}, 0, NULL);
-            }
-            else
-            {
-                NodeTransform* trans = ReadNodeTransform(asset.animations[entity.animIndex], entity.normalizedTime, &gameMemory->transientArena);
-                PushRenderModel(renderGroup, &state->camera[(int)state->gameMode], asset.id, entity.mat, Translate(state->player->transform.position), asset.loadedModel.boneCount, asset.loadedModel.bones, asset.loadedModel.globalInverseTransform, asset.animations[entity.animIndex].channelCount, trans);
-            }
 
+                // GRIDCELL cell;
+                // cell.p[0] = coords + Vec3{ -0.5f, -0.5f, -0.5f };
+                // cell.p[1] = coords + Vec3{ 0.5f, -0.5f, -0.5f };
+                // cell.p[2] = coords + Vec3{ -0.5f, -0.5f, 0.5f };
+                // cell.p[3] = coords + Vec3{ 0.5f, -0.5f, 0.5f };
+                // cell.p[4] = coords + Vec3{ -0.5f, 0.5f, -0.5f };
+                // cell.p[5] = coords + Vec3{ 0.5f, 0.5f, -0.5f };
+                // cell.p[6] = coords + Vec3{ -0.5f, 0.5f, 0.5f };
+                // cell.p[7] = coords + Vec3{ 0.5f, 0.5f, 0.5f };
+                // for (u32 i = 0; i < ARRAY_COUNT(cell.p); ++i)
+                // {
+                //     cell.val[i] = Noise(cell.p[i].x * 20, cell.p[i].y * 20, cell.p[i].z * 20);
+                // }
+                // trisCount += MarchingCube(cell, 0, &gameMemory->transientArena);
+
+                Vec3 coords = (state->offset + Vec3{ (f32)x, (f32)y, (f32)z }) / 5.0f;
+                mat.color = (Noise(coords.x, coords.y, coords.z) + 1) * Color{ 1, 1, 1, 1 };
+                PushRenderModel(renderGroup, &state->camera[(u32)state->gameMode], state->assets[(u32)GameAsset::Cube].id, mat, TRS({ (f32)x, (f32)y, (f32)z }, {}, { 0.1f, 0.1f, 0.1f }), 0, 0, {}, 0, 0);
+            }
         }
     }
+    // if (trisCount > 0)
+    // {
+    //     mesh.indices = PUSH_ARRAY(&gameMemory->transientArena, u32, trisCount * 3);
+    //     for (u32 i = 0; i < trisCount * 3; ++i)
+    //     {
+    //         mesh.indices[i] = i;
+    //     }
+
+    //     mesh.vertexCount = trisCount * 3;
+    //     mesh.indexCount = trisCount * 3;
+
+    //     state->api.UpdateMesh(renderGroup->renderer, state->assets[(u32)GameAsset::Cube].id, 0, mesh);
+    //     PushRenderModel(renderGroup, &state->camera[(u32)state->gameMode], state->assets[(u32)GameAsset::Cube].id, mat, Translate({ (f32)0, (f32)0, (f32)0 }), 0, 0, {}, 0, 0);
+
+    // }
+
+    // for (int i = 0; i < ARRAY_COUNT(state->entities); ++i)
+    // {
+    //     Entity entity = state->entities[i];
+    //     if (entity.isEnabled)
+    //     {
+    //         Asset asset = state->assets[(int)entity.gfx];
+    //         if (entity.animIndex == INVALID_VALUE)
+    //         {
+    //             PushRenderModel(renderGroup, &state->camera[(int)state->gameMode], asset.id, entity.mat, TRS(entity.transform.position, entity.transform.rotation, entity.transform.scale), 0, NULL, {}, 0, NULL);
+    //         }
+    //         else
+    //         {
+    //             NodeTransform* trans = ReadNodeTransform(asset.animations[entity.animIndex], entity.normalizedTime, &gameMemory->transientArena);
+    //             PushRenderModel(renderGroup, &state->camera[(int)state->gameMode], asset.id, entity.mat, Translate(state->player->transform.position), asset.loadedModel.boneCount, asset.loadedModel.bones, asset.loadedModel.globalInverseTransform, asset.animations[entity.animIndex].channelCount, trans);
+    //         }
+
+    //     }
+    // }
 }

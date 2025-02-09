@@ -1,8 +1,9 @@
 # GOD
 
 TODO:
- - terrain generation
- - ability system
- - physics simulation
- - particle system
- - enemy ai
+ * terrain generation
+    perlin noise
+ * ability system
+ * physics simulation
+ * particle system
+ * enemy ai

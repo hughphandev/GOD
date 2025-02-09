@@ -4,7 +4,8 @@
 #include "hz_memory.h"
 #include "hz_math.h"
 #include "hz_anim.h"
-#include <d3d11.h>
+
+struct Renderer;
 
 struct Vert
 {
@@ -111,6 +112,7 @@ struct alignas(16) PSPerScene
 
 struct RenderGroup
 {
+    Renderer* renderer;
     MemoryArena pushBuffer;
 };
 
@@ -133,8 +135,8 @@ struct RenderCommandClear
 
 struct RenderCommandModel
 {
-    Camera* camera;
     u32 modelId;
+    Camera* camera;
     Material mat;
     u32 boneCount;
     Bone* bones;
@@ -148,7 +150,7 @@ struct RenderCommandModel
 
 void* PushRenderElement_(RenderGroup* renderGroup, size_t size, RenderCommandType type)
 {
-    RenderCommandHeader* result = (RenderCommandHeader*)PushSize_(&renderGroup->pushBuffer, size + sizeof(RenderCommandHeader));
+    RenderCommandHeader* result = (RenderCommandHeader*)_PushSize(&renderGroup->pushBuffer, size + sizeof(RenderCommandHeader));
 
     if (result)
     {

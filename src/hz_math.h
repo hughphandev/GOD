@@ -6,6 +6,7 @@
 
 //TODO: remove maybe!
 #include <math.h>
+#include <stdlib.h>
 
 #define DEFINE_LERP(T) T Lerp(T a, T b, f32 t) { return (a + ((b - a) * t)); }
 #ifndef EPSILON 
@@ -13,6 +14,9 @@
 #endif
 #ifndef PI
 #define PI 3.14159265358979323846f
+#endif
+#ifndef E
+#define E 2.71828182845904523536f
 #endif
 #ifndef DEG2RAD
 #define DEG2RAD (PI/180.0f)
@@ -115,9 +119,10 @@ union Rect
 
 // Implementation
 
-inline f32 Floor(f32 value)
+inline s32 Floor(f32 value)
 {
-  return floorf(value);
+  return value > 0 ? (s32)value : (s32)value - 1;
+
 }
 inline f32 Ceil(f32 value)
 {
@@ -180,6 +185,11 @@ inline f32 Sqr(f32 x)
 inline f32 Sqrt(f32 x)
 {
   return sqrtf(x);
+}
+
+inline f32 Pow(f32 x, f32 pwr)
+{
+  return (f32)pow(x, pwr);
 }
 
 inline f32 Abs(f32 value)
@@ -572,23 +582,23 @@ inline f32 Dot(Vec3 a, Vec3 b)
 }
 
 
-Vec3 RotateBy(Vec3 v, Vec3 axis, float angle)
+Vec3 RotateBy(Vec3 v, Vec3 axis, f32 angle)
 {
   Vec3 result = v;
 
   // Vector3Normalize(axis);
-  float length = Sqrt(axis.x * axis.x + axis.y * axis.y + axis.z * axis.z);
+  f32 length = Sqrt(axis.x * axis.x + axis.y * axis.y + axis.z * axis.z);
   if (length == 0.0f) length = 1.0f;
-  float ilength = 1.0f / length;
+  f32 ilength = 1.0f / length;
   axis.x *= ilength;
   axis.y *= ilength;
   axis.z *= ilength;
 
   angle /= 2.0f;
-  float a = Sin(angle);
-  float b = axis.x * a;
-  float c = axis.y * a;
-  float d = axis.z * a;
+  f32 a = Sin(angle);
+  f32 b = axis.x * a;
+  f32 c = axis.y * a;
+  f32 d = axis.z * a;
   a = Cos(angle);
   Vec3 w = { b, c, d };
 
@@ -770,16 +780,16 @@ u32 ToU32Color(Vec4 a)
   return (alpha << 24) | (blue << 16) | (green << 8) | (red << 0);
 }
 
-Quaternion FromEuler(float pitch, float yaw, float roll)
+Quaternion FromEuler(f32 pitch, f32 yaw, f32 roll)
 {
   Quaternion result = { 0 };
 
-  float x0 = Cos(pitch * 0.5f);
-  float x1 = Sin(pitch * 0.5f);
-  float y0 = Cos(yaw * 0.5f);
-  float y1 = Sin(yaw * 0.5f);
-  float z0 = Cos(roll * 0.5f);
-  float z1 = Sin(roll * 0.5f);
+  f32 x0 = Cos(pitch * 0.5f);
+  f32 x1 = Sin(pitch * 0.5f);
+  f32 y0 = Cos(yaw * 0.5f);
+  f32 y1 = Sin(yaw * 0.5f);
+  f32 z0 = Cos(roll * 0.5f);
+  f32 z1 = Sin(roll * 0.5f);
 
   result.x = x1 * y0 * z0 - x0 * y1 * z1;
   result.y = x0 * y1 * z0 + x1 * y0 * z1;
@@ -804,9 +814,9 @@ void ToAxisAngle(Quaternion q, Vec3* outAxis, f32* outAngle)
   if (Abs(q.w) > 1.0f)
   {
     // QuaternionNormalize(q);
-    float length = Sqrt(q.x * q.x + q.y * q.y + q.z * q.z + q.w * q.w);
+    f32 length = Sqrt(q.x * q.x + q.y * q.y + q.z * q.z + q.w * q.w);
     if (length == 0.0f) length = 1.0f;
-    float ilength = 1.0f / length;
+    f32 ilength = 1.0f / length;
 
     q.x = q.x * ilength;
     q.y = q.y * ilength;
@@ -815,8 +825,8 @@ void ToAxisAngle(Quaternion q, Vec3* outAxis, f32* outAngle)
   }
 
   Vec3 resAxis = { 0.0f, 0.0f, 0.0f };
-  float resAngle = 2.0f * Cos(q.w);
-  float den = Sqrt(1.0f - q.w * q.w);
+  f32 resAngle = 2.0f * Cos(q.w);
+  f32 den = Sqrt(1.0f - q.w * q.w);
 
   if (den > EPSILON)
   {
@@ -1010,8 +1020,8 @@ Mat4 GetViewMatrix(Vec3 position, Vec3 direction, Vec3 worldUp) {
 }
 
 Mat4 GetPerspectiveProjection(f32 fov, f32 aspect, f32 nPlane, f32 fPlane) {
-  float f = 1.0f / Tan(fov / 2.0f);
-  float delta = nPlane - fPlane;
+  f32 f = 1.0f / Tan(fov / 2.0f);
+  f32 delta = nPlane - fPlane;
 
   Mat4 result = { {
           {f / aspect, 0, 0, 0},
@@ -1036,12 +1046,12 @@ Vec3 GetCamDir(f32 pitch, f32 yaw)
 Quaternion Euler(Vec3 radian)
 {
   // Calculate half-angles
-  float cy = Cos(radian.z * 0.5f);
-  float sy = Sin(radian.z * 0.5f);
-  float cp = Cos(radian.y * 0.5f);
-  float sp = Sin(radian.y * 0.5f);
-  float cr = Cos(radian.x * 0.5f);
-  float sr = Sin(radian.x * 0.5f);
+  f32 cy = Cos(radian.z * 0.5f);
+  f32 sy = Sin(radian.z * 0.5f);
+  f32 cp = Cos(radian.y * 0.5f);
+  f32 sp = Sin(radian.y * 0.5f);
+  f32 cr = Cos(radian.x * 0.5f);
+  f32 sr = Sin(radian.x * 0.5f);
 
   // Compute quaternion components
   return {
@@ -1055,7 +1065,7 @@ Quaternion Euler(Vec3 radian)
 Mat4 Rotate(Quaternion rotation)
 {
   Mat4 result = {};
-  float w = rotation.w, x = rotation.x, y = rotation.y, z = rotation.z;
+  f32 w = rotation.w, x = rotation.x, y = rotation.y, z = rotation.z;
 
   // Fill the 3x3 rotation part of the matrix
   result.e[0][0] = 1 - 2 * y * y - 2 * z * z;
@@ -1263,5 +1273,6 @@ inline Mat4Inverse Inverse(Mat4 a)
 
   return result;
 }
+
 
 #endif

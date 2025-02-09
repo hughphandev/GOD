@@ -17,33 +17,35 @@ struct Win32Mesh
 {
     bool isValid;
     Mat4 transform;
+    UINT vertexCount;
     ID3D11Buffer* vertexBuffer;
+    UINT indexCount;
     ID3D11Buffer* indexBuffer;
+    UINT shaderResIndex;
+
     ID3D11InputLayout* inputLayout;
     ID3D11SamplerState* samplerState;
-    UINT shaderResIndex;
 
     ID3D11Buffer* vsPerInstance;
     ID3D11Buffer* psPerInstance;
 
     UINT stride[1];
     UINT offset[1];
-    UINT indexCount;
 };
 
 struct Win32Model
 {
-    bool isValid;
     u32 meshCount;
     Win32Mesh* meshes;
 };
 struct Win32Texture
 {
     bool isValid;
+    u32 width, height;
     ID3D11ShaderResourceView* shaderRes;
 };
 
-struct Win32D3D11
+struct Renderer
 {
     IDXGISwapChain* swapChain;
     ID3D11Device* device;
@@ -54,6 +56,7 @@ struct Win32D3D11
 
     //TODO: test code
 #define MAX_MODEL_COUNT 256
+    u32 modelCount;
     Win32Model models[MAX_MODEL_COUNT];
 #define MAX_TEXTURE_COUNT 8
     Win32Texture textures[MAX_TEXTURE_COUNT];
@@ -82,6 +85,7 @@ struct Win32GameCode
     GameInit* InitGame;
     GameUpdate* UpdateGame;
 };
+
 
 Win32GameCode Win32LoadGameCode(char* dll)
 {
@@ -121,7 +125,7 @@ void Win32ReloadGameCode(Win32GameCode* gameCode)
     }
 }
 
-static void D3d11InitConstantBuffer(Win32D3D11* d3d11, void* data, UINT size, ID3D11Buffer** buffer)
+static void D3d11InitConstantBuffer(Renderer* renderer, void* data, UINT size, ID3D11Buffer** buffer)
 {
     D3D11_BUFFER_DESC constBufferDesc = {};
     constBufferDesc.ByteWidth = size;
@@ -132,38 +136,40 @@ static void D3d11InitConstantBuffer(Win32D3D11* d3d11, void* data, UINT size, ID
     constBufferDesc.StructureByteStride = 0;
     D3D11_SUBRESOURCE_DATA constResDesc = {};
     constResDesc.pSysMem = data;
-    d3d11->device->CreateBuffer(&constBufferDesc, &constResDesc, buffer);
+    renderer->device->CreateBuffer(&constBufferDesc, &constResDesc, buffer);
 }
 
-static Win32Mesh Win32LoadMesh(Win32D3D11* d3d11, LoadedMesh initialMesh)
+static Win32Mesh Win32LoadMesh(Renderer* renderer, LoadedMesh initialMesh)
 {
     Win32Mesh result = {};
+    result.vertexCount = initialMesh.vertexCount;
     result.indexCount = initialMesh.indexCount;
     result.transform = initialMesh.transform;
     result.shaderResIndex = initialMesh.matIndex;
 
     D3D11_BUFFER_DESC vertexBufferDesc = {};
     vertexBufferDesc.ByteWidth = sizeof(*initialMesh.vertices) * initialMesh.vertexCount;
-    vertexBufferDesc.Usage = D3D11_USAGE_DEFAULT;
+    //TODO: static vs dynamic mesh
+    vertexBufferDesc.Usage = D3D11_USAGE_DYNAMIC;
     vertexBufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
-    vertexBufferDesc.CPUAccessFlags = 0;
+    vertexBufferDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
     vertexBufferDesc.MiscFlags = 0;
     vertexBufferDesc.StructureByteStride = sizeof(*initialMesh.vertices);
     D3D11_SUBRESOURCE_DATA vertexResDesc = {};
     vertexResDesc.pSysMem = initialMesh.vertices;
-    d3d11->device->CreateBuffer(&vertexBufferDesc, &vertexResDesc, &result.vertexBuffer);
+    renderer->device->CreateBuffer(&vertexBufferDesc, &vertexResDesc, &result.vertexBuffer);
 
 
     D3D11_BUFFER_DESC indexBufferDesc = {};
     indexBufferDesc.ByteWidth = sizeof(*initialMesh.indices) * initialMesh.indexCount;
-    indexBufferDesc.Usage = D3D11_USAGE_DEFAULT;
+    indexBufferDesc.Usage = D3D11_USAGE_DYNAMIC;
     indexBufferDesc.BindFlags = D3D11_BIND_INDEX_BUFFER;
-    indexBufferDesc.CPUAccessFlags = 0;
+    indexBufferDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
     indexBufferDesc.MiscFlags = 0;
     indexBufferDesc.StructureByteStride = sizeof(*initialMesh.indices);
     D3D11_SUBRESOURCE_DATA indexResDesc = {};
     indexResDesc.pSysMem = initialMesh.indices;
-    d3d11->device->CreateBuffer(&indexBufferDesc, &indexResDesc, &result.indexBuffer);
+    renderer->device->CreateBuffer(&indexBufferDesc, &indexResDesc, &result.indexBuffer);
 
 
     D3D11_SAMPLER_DESC samplerDesc = {};
@@ -171,14 +177,14 @@ static Win32Mesh Win32LoadMesh(Win32D3D11* d3d11, LoadedMesh initialMesh)
     samplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
     samplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
     samplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
-    d3d11->device->CreateSamplerState(&samplerDesc, &result.samplerState);
+    renderer->device->CreateSamplerState(&samplerDesc, &result.samplerState);
 
 
     VSPerInstance vsPerInstance = {};
-    D3d11InitConstantBuffer(d3d11, &vsPerInstance, sizeof(VSPerInstance), &result.vsPerInstance);
+    D3d11InitConstantBuffer(renderer, &vsPerInstance, sizeof(VSPerInstance), &result.vsPerInstance);
 
     PSPerInstance psPerInstance = {};
-    D3d11InitConstantBuffer(d3d11, &psPerInstance, sizeof(PSPerInstance), &result.psPerInstance);
+    D3d11InitConstantBuffer(renderer, &psPerInstance, sizeof(PSPerInstance), &result.psPerInstance);
 
 
     D3D11_INPUT_ELEMENT_DESC layoutDesc[] =
@@ -190,55 +196,100 @@ static Win32Mesh Win32LoadMesh(Win32D3D11* d3d11, LoadedMesh initialMesh)
         {"WEIGHTS", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, offsetof(Vert, weights), D3D11_INPUT_PER_VERTEX_DATA, 0},
         // {"TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, sizeof(Vec3), D3D11_INPUT_PER_VERTEX_DATA, 0},
     };
-    d3d11->device->CreateInputLayout(layoutDesc, ARRAY_COUNT(layoutDesc), d3d11->defaultVertexShader, d3d11->defaultVertexShaderSize, &result.inputLayout);
+    renderer->device->CreateInputLayout(layoutDesc, ARRAY_COUNT(layoutDesc), renderer->defaultVertexShader, renderer->defaultVertexShaderSize, &result.inputLayout);
 
     result.stride[0] = sizeof(*initialMesh.vertices);
     result.offset[0] = 0;
     return result;
 }
 
-static u32 Win32LoadModel(Win32D3D11* d3d11, LoadedModel initialModel, MemoryArena* arena)
+static void Win32UpdateMesh(Renderer* renderer, u32 modelId, u32 meshId, LoadedMesh meshData)
 {
-    u32 result = INVALID_VALUE;
-    for (int i = 0; i < MAX_MODEL_COUNT; ++i)
+    Win32Mesh* target = &renderer->models[modelId].meshes[meshId];
+    if (target->vertexCount == meshData.vertexCount)
     {
-        if (!d3d11->models[i].isValid)
-        {
-            d3d11->models[i].isValid = true;
-            result = i;
-            break;
-        }
-    }
-    ASSERT(result != INVALID_VALUE);
+        D3D11_MAPPED_SUBRESOURCE subRes;
 
-    Win32Model* win32Model = &d3d11->models[result];
-    win32Model->isValid = true;
+        renderer->deviceContext->Map(target->vertexBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &subRes);
+
+        Memcpy(subRes.pData, meshData.vertices, sizeof(*meshData.vertices) * meshData.vertexCount);
+
+        renderer->deviceContext->Unmap(target->vertexBuffer, 0);
+    }
+    else
+    {
+        target->vertexCount = meshData.vertexCount;
+        if (target->vertexBuffer) target->vertexBuffer->Release();
+        D3D11_BUFFER_DESC vertexBufferDesc = {};
+        vertexBufferDesc.ByteWidth = sizeof(*meshData.vertices) * meshData.vertexCount;
+        //TODO: static vs dynamic mesh
+        vertexBufferDesc.Usage = D3D11_USAGE_DYNAMIC;
+        vertexBufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+        vertexBufferDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+        vertexBufferDesc.MiscFlags = 0;
+        vertexBufferDesc.StructureByteStride = sizeof(*meshData.vertices);
+        D3D11_SUBRESOURCE_DATA vertexResDesc = {};
+        vertexResDesc.pSysMem = meshData.vertices;
+        renderer->device->CreateBuffer(&vertexBufferDesc, &vertexResDesc, &target->vertexBuffer);
+    }
+
+    if (target->indexCount == meshData.indexCount)
+    {
+        D3D11_MAPPED_SUBRESOURCE subRes;
+
+        renderer->deviceContext->Map(target->indexBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &subRes);
+
+        Memcpy(subRes.pData, meshData.indices, sizeof(*meshData.indices) * meshData.indexCount);
+
+        renderer->deviceContext->Unmap(target->indexBuffer, 0);
+    }
+    else
+    {
+        target->indexCount = meshData.indexCount;
+        if (target->indexBuffer) target->indexBuffer->Release();
+        D3D11_BUFFER_DESC indexBufferDesc = {};
+        indexBufferDesc.ByteWidth = sizeof(*meshData.indices) * meshData.indexCount;
+        indexBufferDesc.Usage = D3D11_USAGE_DYNAMIC;
+        indexBufferDesc.BindFlags = D3D11_BIND_INDEX_BUFFER;
+        indexBufferDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+        indexBufferDesc.MiscFlags = 0;
+        indexBufferDesc.StructureByteStride = sizeof(*meshData.indices);
+        D3D11_SUBRESOURCE_DATA indexResDesc = {};
+        indexResDesc.pSysMem = meshData.indices;
+        renderer->device->CreateBuffer(&indexBufferDesc, &indexResDesc, &target->indexBuffer);
+    }
+}
+
+static u32 Win32UploadModel(Renderer* renderer, LoadedModel initialModel, MemoryArena* arena)
+{
+    u32 result = renderer->modelCount++;
+    Win32Model* win32Model = &renderer->models[result];
 
     win32Model->meshCount = initialModel.meshCount;
     win32Model->meshes = PUSH_ARRAY(arena, Win32Mesh, initialModel.meshCount);
 
     for (u32 i = 0; i < initialModel.meshCount; ++i)
     {
-        win32Model->meshes[i] = Win32LoadMesh(d3d11, initialModel.meshes[i]);
+        win32Model->meshes[i] = Win32LoadMesh(renderer, initialModel.meshes[i]);
     }
     return result;
 }
 
-static u32 Win32LoadTexture(Win32D3D11* d3d11, Texture texture, MemoryArena* arena)
+static u32 Win32UploadTexture(Renderer* renderer, Texture texture, MemoryArena* arena)
 {
     u32 result = INVALID_VALUE;
     for (int i = 0; i < MAX_TEXTURE_COUNT; ++i)
     {
-        if (!d3d11->textures[i].isValid)
+        if (!renderer->textures[i].isValid)
         {
-            d3d11->textures[i].isValid = true;
+            renderer->textures[i].isValid = true;
             result = i;
             break;
         }
     }
     ASSERT(result != INVALID_VALUE);
 
-    Win32Texture* win32Texture = &d3d11->textures[result];
+    Win32Texture* win32Texture = &renderer->textures[result];
     win32Texture->shaderRes = PUSH_TYPE(arena, ID3D11ShaderResourceView);
     if (texture.width > 0 && texture.height > 0)
     {
@@ -261,22 +312,21 @@ static u32 Win32LoadTexture(Win32D3D11* d3d11, Texture texture, MemoryArena* are
         initData.SysMemSlicePitch = sizeof(*texture.texel) * texture.width * texture.height;
 
         ID3D11Texture2D* tex = nullptr;
-        d3d11->device->CreateTexture2D(&textureDesc, &initData, &tex);
+        renderer->device->CreateTexture2D(&textureDesc, &initData, &tex);
 
         D3D11_SHADER_RESOURCE_VIEW_DESC resDesc;
         resDesc.Format = textureDesc.Format;
         resDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
         resDesc.Texture2D.MostDetailedMip = 0;
         resDesc.Texture2D.MipLevels = 1;
-        d3d11->device->CreateShaderResourceView(tex, &resDesc, &win32Texture->shaderRes);
+        renderer->device->CreateShaderResourceView(tex, &resDesc, &win32Texture->shaderRes);
     }
     return result;
 }
 
 
-static void Win32InitScene(GameState* gameState, RenderGroup* renderGroup, Win32D3D11* d3d11, GameMemory* gameMemory, HWND windowHandle)
+static void Win32InitScene(GameState* gameState, RenderGroup* renderGroup, GameMemory* gameMemory, HWND windowHandle)
 {
-
     DXGI_SWAP_CHAIN_DESC swapChainDesc = {};
     swapChainDesc.BufferDesc.Width = gameState->width;
     swapChainDesc.BufferDesc.Height = gameState->height;
@@ -294,18 +344,19 @@ static void Win32InitScene(GameState* gameState, RenderGroup* renderGroup, Win32
     swapChainDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
     swapChainDesc.Flags = 0;
 
-    HRESULT result = D3D11CreateDeviceAndSwapChain(0, D3D_DRIVER_TYPE_HARDWARE, 0, D3D11_CREATE_DEVICE_DEBUG, 0, 0, D3D11_SDK_VERSION, &swapChainDesc, &d3d11->swapChain, &d3d11->device, 0, &d3d11->deviceContext);
+    HRESULT result = D3D11CreateDeviceAndSwapChain(0, D3D_DRIVER_TYPE_HARDWARE, 0, D3D11_CREATE_DEVICE_DEBUG, 0, 0, D3D11_SDK_VERSION, &swapChainDesc, &renderGroup->renderer->swapChain, &renderGroup->renderer->device, 0, &renderGroup->renderer->deviceContext);
 
     if (SUCCEEDED(result))
     {
+        Renderer* renderer = renderGroup->renderer;
         ID3D11Texture2D* frameBuffer;
-        if (!SUCCEEDED(d3d11->swapChain->GetBuffer(0, __uuidof(ID3D11Texture2D), (void**)&frameBuffer)))
+        if (!SUCCEEDED(renderer->swapChain->GetBuffer(0, __uuidof(ID3D11Texture2D), (void**)&frameBuffer)))
         {
             //TODO: Logging
             ASSERT(false);
         }
 
-        if (!SUCCEEDED(d3d11->device->CreateRenderTargetView(frameBuffer, 0, &d3d11->renderTargetView)))
+        if (!SUCCEEDED(renderer->device->CreateRenderTargetView(frameBuffer, 0, &renderer->renderTargetView)))
         {
             //TODO: Logging
             ASSERT(false);
@@ -327,7 +378,7 @@ static void Win32InitScene(GameState* gameState, RenderGroup* renderGroup, Win32
         // depthStencilDesc.BackFace.StencilPassOp = D3D11_STENCIL_OP_KEEP;
         // depthStencilDesc.BackFace.StencilFunc = D3D11_COMPARISON_ALWAYS;
         ID3D11DepthStencilState* depthStencilState;
-        d3d11->device->CreateDepthStencilState(&depthStencilDesc, &depthStencilState);
+        renderer->device->CreateDepthStencilState(&depthStencilDesc, &depthStencilState);
 
         ID3D11RasterizerState* rasterizerState;
         {
@@ -343,11 +394,11 @@ static void Win32InitScene(GameState* gameState, RenderGroup* renderGroup, Win32
             rasterizerDesc.SlopeScaledDepthBias = 0.0f;
             rasterizerDesc.DepthBias = 0;
 
-            d3d11->device->CreateRasterizerState(&rasterizerDesc, &rasterizerState);
+            renderer->device->CreateRasterizerState(&rasterizerDesc, &rasterizerState);
         }
 
-        d3d11->deviceContext->RSSetState(rasterizerState);
-        d3d11->deviceContext->OMSetDepthStencilState(depthStencilState, 0);
+        renderer->deviceContext->RSSetState(rasterizerState);
+        renderer->deviceContext->OMSetDepthStencilState(depthStencilState, 0);
 
         D3D11_TEXTURE2D_DESC depthTextureDesc = {};
         depthTextureDesc.Width = gameState->width;
@@ -361,7 +412,7 @@ static void Win32InitScene(GameState* gameState, RenderGroup* renderGroup, Win32
         depthTextureDesc.BindFlags = D3D11_BIND_DEPTH_STENCIL;
 
         ID3D11Texture2D* depthStencilTexture;
-        result = d3d11->device->CreateTexture2D(&depthTextureDesc, NULL, &depthStencilTexture);
+        result = renderer->device->CreateTexture2D(&depthTextureDesc, NULL, &depthStencilTexture);
 
         if (result != S_OK)
         {
@@ -374,7 +425,7 @@ static void Win32InitScene(GameState* gameState, RenderGroup* renderGroup, Win32
         dsvDesc.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
         dsvDesc.Texture2D.MipSlice = 0;
 
-        result = d3d11->device->CreateDepthStencilView(depthStencilTexture, NULL, &d3d11->depthStencilView);
+        result = renderer->device->CreateDepthStencilView(depthStencilTexture, NULL, &renderer->depthStencilView);
         depthStencilTexture->Release();
 
         if (result != S_OK)
@@ -383,7 +434,7 @@ static void Win32InitScene(GameState* gameState, RenderGroup* renderGroup, Win32
             //TODO: Logging
         }
 
-        d3d11->deviceContext->OMSetRenderTargets(1, &d3d11->renderTargetView, d3d11->depthStencilView);
+        renderer->deviceContext->OMSetRenderTargets(1, &renderer->renderTargetView, renderer->depthStencilView);
 
         D3D11_VIEWPORT viewPort = {};
         viewPort.TopLeftX = 0;
@@ -394,71 +445,55 @@ static void Win32InitScene(GameState* gameState, RenderGroup* renderGroup, Win32
         viewPort.MaxDepth = 1;
 
         VSPerFrame vsPerFrame = {};
-        D3d11InitConstantBuffer(d3d11, &vsPerFrame, sizeof(VSPerFrame), &d3d11->vsPerFrame);
+        D3d11InitConstantBuffer(renderer, &vsPerFrame, sizeof(VSPerFrame), &renderer->vsPerFrame);
 
         PSPerFrame psPerFrame = {};
-        D3d11InitConstantBuffer(d3d11, &psPerFrame, sizeof(PSPerFrame), &d3d11->psPerFrame);
+        D3d11InitConstantBuffer(renderer, &psPerFrame, sizeof(PSPerFrame), &renderer->psPerFrame);
 
         VSPerScene vsPerScene = {};
-        D3d11InitConstantBuffer(d3d11, &vsPerScene, sizeof(VSPerScene), &d3d11->vsPerScene);
+        D3d11InitConstantBuffer(renderer, &vsPerScene, sizeof(VSPerScene), &renderer->vsPerScene);
 
         PSPerScene psPerScene = {};
-        D3d11InitConstantBuffer(d3d11, &psPerScene, sizeof(PSPerScene), &d3d11->psPerScene);
+        D3d11InitConstantBuffer(renderer, &psPerScene, sizeof(PSPerScene), &renderer->psPerScene);
 
         File vsShaderFile = ReadFile("default_vs.fxo", &gameMemory->persistantArena);
         File psShaderFile = ReadFile("default_ps.fxo", &gameMemory->persistantArena);
-        d3d11->defaultVertexShader = vsShaderFile.content;
-        d3d11->defaultVertexShaderSize = vsShaderFile.contentSize;
-        d3d11->defaultPixelShader = psShaderFile.content;
-        d3d11->defaultPixelShaderSize = psShaderFile.contentSize;
+        renderer->defaultVertexShader = vsShaderFile.content;
+        renderer->defaultVertexShaderSize = vsShaderFile.contentSize;
+        renderer->defaultPixelShader = psShaderFile.content;
+        renderer->defaultPixelShaderSize = psShaderFile.contentSize;
 
-        d3d11->device->CreateVertexShader(d3d11->defaultVertexShader, d3d11->defaultVertexShaderSize, 0, &d3d11->vertexShader);
-        d3d11->device->CreatePixelShader(d3d11->defaultPixelShader, d3d11->defaultPixelShaderSize, 0, &d3d11->pixelShader);
+        renderer->device->CreateVertexShader(renderer->defaultVertexShader, renderer->defaultVertexShaderSize, 0, &renderer->vertexShader);
+        renderer->device->CreatePixelShader(renderer->defaultPixelShader, renderer->defaultPixelShaderSize, 0, &renderer->pixelShader);
 
-        d3d11->deviceContext->VSSetConstantBuffers(2, 1, &d3d11->vsPerScene);
-        d3d11->deviceContext->PSSetConstantBuffers(2, 1, &d3d11->psPerScene);
+        renderer->deviceContext->VSSetConstantBuffers(2, 1, &renderer->vsPerScene);
+        renderer->deviceContext->PSSetConstantBuffers(2, 1, &renderer->psPerScene);
 
-        d3d11->deviceContext->RSSetViewports(1, &viewPort);
-
-        for (u32 i = 0; i < ARRAY_COUNT(gameState->assets); ++i)
-        {
-            switch (gameState->assets[i].type)
-            {
-                case AssetType::Model:
-                    gameState->assets[i].id = Win32LoadModel(d3d11, gameState->assets[i].loadedModel, &gameMemory->persistantArena);
-                    break;
-                case AssetType::Texture:
-                    gameState->assets[i].id = Win32LoadTexture(d3d11, gameState->assets[i].texture, &gameMemory->persistantArena);
-                    break;
-
-                default:
-                    break;
-            }
-        }
+        renderer->deviceContext->RSSetViewports(1, &viewPort);
     }
 }
 
-static void Win32RenderOutput(RenderGroup* renderGroup, Win32D3D11 d3d11)
+static void Win32RenderOutput(RenderGroup* renderGroup)
 {
+    Renderer* renderer = renderGroup->renderer;
     {
         D3D11_MAPPED_SUBRESOURCE subRes;
-
-        d3d11.deviceContext->Map(d3d11.vsPerFrame, 0, D3D11_MAP_WRITE_DISCARD, 0, &subRes);
+        renderer->deviceContext->Map(renderer->vsPerFrame, 0, D3D11_MAP_WRITE_DISCARD, 0, &subRes);
 
         VSPerFrame* vsPerFrame = (VSPerFrame*)subRes.pData;
-        d3d11.deviceContext->Unmap(d3d11.vsPerFrame, 0);
-        d3d11.deviceContext->VSSetConstantBuffers(1, 1, &d3d11.vsPerFrame);
+        renderer->deviceContext->Unmap(renderer->vsPerFrame, 0);
+        renderer->deviceContext->VSSetConstantBuffers(1, 1, &renderer->vsPerFrame);
     }
 
     {
         D3D11_MAPPED_SUBRESOURCE subRes;
-        d3d11.deviceContext->Map(d3d11.psPerFrame, 0, D3D11_MAP_WRITE_DISCARD, 0, &subRes);
+        renderer->deviceContext->Map(renderer->psPerFrame, 0, D3D11_MAP_WRITE_DISCARD, 0, &subRes);
 
         PSPerFrame* psPerFrame = (PSPerFrame*)subRes.pData;
-        d3d11.deviceContext->Unmap(d3d11.psPerFrame, 0);
+        renderer->deviceContext->Unmap(renderer->psPerFrame, 0);
         psPerFrame->lightDirection = Normalize(Vec3{ -1, -1, 0 });
         psPerFrame->diffuse = { 1, 1, 1, 1 };
-        d3d11.deviceContext->PSSetConstantBuffers(1, 1, &d3d11.psPerFrame);
+        renderer->deviceContext->PSSetConstantBuffers(1, 1, &renderer->psPerFrame);
     }
 
     for (void* base = renderGroup->pushBuffer.base; base < (u8*)renderGroup->pushBuffer.base + renderGroup->pushBuffer.used;)
@@ -471,8 +506,8 @@ static void Win32RenderOutput(RenderGroup* renderGroup, Win32D3D11 d3d11)
             {
                 RenderCommandClear* entry = (RenderCommandClear*)base;
 
-                d3d11.deviceContext->ClearRenderTargetView(d3d11.renderTargetView, entry->color.e);
-                d3d11.deviceContext->ClearDepthStencilView(d3d11.depthStencilView, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0);
+                renderer->deviceContext->ClearRenderTargetView(renderer->renderTargetView, entry->color.e);
+                renderer->deviceContext->ClearDepthStencilView(renderer->depthStencilView, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0);
 
                 base = (u8*)base + sizeof(*entry);
             } break;
@@ -481,13 +516,13 @@ static void Win32RenderOutput(RenderGroup* renderGroup, Win32D3D11 d3d11)
             {
                 RenderCommandModel* entry = (RenderCommandModel*)base;
 
-                Win32Model model = d3d11.models[entry->modelId];
+                Win32Model model = renderer->models[entry->modelId];
                 for (u32 i = 0; i < model.meshCount; ++i)
                 {
                     {
                         D3D11_MAPPED_SUBRESOURCE subRes;
 
-                        d3d11.deviceContext->Map(model.meshes[i].vsPerInstance, 0, D3D11_MAP_WRITE_DISCARD, 0, &subRes);
+                        renderer->deviceContext->Map(model.meshes[i].vsPerInstance, 0, D3D11_MAP_WRITE_DISCARD, 0, &subRes);
 
                         VSPerInstance* vsPerInstance = (VSPerInstance*)subRes.pData;
                         Mat4 worldTransform = model.meshes[i].transform * entry->transform;
@@ -514,39 +549,39 @@ static void Win32RenderOutput(RenderGroup* renderGroup, Win32D3D11 d3d11)
                             }
                             vsPerInstance->bones[boneIndex] = entry->globalInverseTransform * transform * entry->bones[boneIndex].offsetMatrix;
                         }
-                        d3d11.deviceContext->Unmap(model.meshes[i].vsPerInstance, 0);
+                        renderer->deviceContext->Unmap(model.meshes[i].vsPerInstance, 0);
                     }
 
                     {
                         D3D11_MAPPED_SUBRESOURCE subRes;
-                        d3d11.deviceContext->Map(model.meshes[i].psPerInstance, 0, D3D11_MAP_WRITE_DISCARD, 0, &subRes);
+                        renderer->deviceContext->Map(model.meshes[i].psPerInstance, 0, D3D11_MAP_WRITE_DISCARD, 0, &subRes);
 
                         PSPerInstance* psPerInstance = (PSPerInstance*)subRes.pData;
                         psPerInstance->color = entry->mat.color;
 
-                        d3d11.deviceContext->Unmap(model.meshes[i].psPerInstance, 0);
+                        renderer->deviceContext->Unmap(model.meshes[i].psPerInstance, 0);
                     }
 
-                    d3d11.deviceContext->VSSetShader(d3d11.vertexShader, 0, 0);
-                    d3d11.deviceContext->PSSetShader(d3d11.pixelShader, 0, 0);
-                    d3d11.deviceContext->VSSetConstantBuffers(0, 1, &model.meshes[i].vsPerInstance);
-                    d3d11.deviceContext->PSSetConstantBuffers(0, 1, &model.meshes[i].psPerInstance);
-                    d3d11.deviceContext->IASetVertexBuffers(0, 1, &model.meshes[i].vertexBuffer, model.meshes[i].stride, model.meshes[i].offset);
-                    d3d11.deviceContext->IASetIndexBuffer(model.meshes[i].indexBuffer, DXGI_FORMAT_R32_UINT, 0);
-                    d3d11.deviceContext->IASetInputLayout(model.meshes[i].inputLayout);
+                    renderer->deviceContext->VSSetShader(renderer->vertexShader, 0, 0);
+                    renderer->deviceContext->PSSetShader(renderer->pixelShader, 0, 0);
+                    renderer->deviceContext->VSSetConstantBuffers(0, 1, &model.meshes[i].vsPerInstance);
+                    renderer->deviceContext->PSSetConstantBuffers(0, 1, &model.meshes[i].psPerInstance);
+                    renderer->deviceContext->IASetVertexBuffers(0, 1, &model.meshes[i].vertexBuffer, model.meshes[i].stride, model.meshes[i].offset);
+                    renderer->deviceContext->IASetIndexBuffer(model.meshes[i].indexBuffer, DXGI_FORMAT_R32_UINT, 0);
+                    renderer->deviceContext->IASetInputLayout(model.meshes[i].inputLayout);
                     if (entry->mat.textureId)
                     {
-                        d3d11.deviceContext->PSSetShaderResources(0, 1, &d3d11.textures[entry->mat.textureId[model.meshes[i].shaderResIndex]].shaderRes);
+                        renderer->deviceContext->PSSetShaderResources(0, 1, &renderer->textures[entry->mat.textureId[model.meshes[i].shaderResIndex]].shaderRes);
                     }
                     else
                     {
-                        d3d11.deviceContext->PSSetShaderResources(0, 1, &d3d11.textures[0].shaderRes);
+                        renderer->deviceContext->PSSetShaderResources(0, 1, &renderer->textures[0].shaderRes);
                     }
-                    d3d11.deviceContext->PSSetSamplers(0, 1, &model.meshes[i].samplerState);
-                    d3d11.deviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-                    d3d11.deviceContext->OMSetRenderTargets(1, &d3d11.renderTargetView, d3d11.depthStencilView);
+                    renderer->deviceContext->PSSetSamplers(0, 1, &model.meshes[i].samplerState);
+                    renderer->deviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+                    renderer->deviceContext->OMSetRenderTargets(1, &renderer->renderTargetView, renderer->depthStencilView);
 
-                    d3d11.deviceContext->DrawIndexed(model.meshes[i].indexCount, 0, 0);
+                    renderer->deviceContext->DrawIndexed(model.meshes[i].indexCount, 0, 0);
 
                 }
                 base = (u8*)base + sizeof(*entry);
@@ -556,7 +591,7 @@ static void Win32RenderOutput(RenderGroup* renderGroup, Win32D3D11 d3d11)
                 break;
         }
     }
-    d3d11.swapChain->Present(0, 0);
+    renderer->swapChain->Present(0, 0);
 }
 
 inline static u64 Win32GetPerfCounter()
@@ -740,11 +775,14 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prevInstance, PSTR cmdLine, int
     InitMemoryArena(&gameMemory.persistantArena, persistantArenaSize, memory);
     InitMemoryArena(&gameMemory.transientArena, transientArenaSize, (u8*)memory + persistantArenaSize);
     GameState* gameState = PUSH_TYPE(&gameMemory.persistantArena, GameState);
+
     RenderGroup* renderGroup = PUSH_TYPE(&gameMemory.persistantArena, RenderGroup);
     InitMemoryArena(&renderGroup->pushBuffer, pushBufferSize, (u8*)memory + persistantArenaSize + transientArenaSize);
+    Renderer renderer = {};
+    renderGroup->renderer = &renderer;
 
-    Win32GameCode gameCode = Win32LoadGameCode("game.dll");
-    gameCode.InitGame(gameState, renderGroup, &gameMemory);
+    gameState->width = 1280;
+    gameState->height = 720;
 
     WNDCLASSEX windowClass = {};
     windowClass.cbSize = sizeof(WNDCLASSEX);
@@ -753,16 +791,22 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prevInstance, PSTR cmdLine, int
     windowClass.hInstance = instance;
     windowClass.hCursor = LoadCursor(0, IDC_ARROW);
     //  windowClass.hIcon;
-    windowClass.lpszClassName = gameState->tittle;
+    windowClass.lpszClassName = "GOD";
 
     u64 perfFrequency = Win32GetPerfFrequency();
 
     if (RegisterClassEx(&windowClass))
     {
-        HWND windowHandle = CreateWindowEx(0, windowClass.lpszClassName, gameState->tittle, WS_OVERLAPPEDWINDOW | WS_VISIBLE, CW_USEDEFAULT, CW_USEDEFAULT, gameState->width, gameState->height, 0, 0, instance, 0);
+        HWND windowHandle = CreateWindowEx(0, windowClass.lpszClassName, windowClass.lpszClassName, WS_OVERLAPPEDWINDOW | WS_VISIBLE, CW_USEDEFAULT, CW_USEDEFAULT, gameState->width, gameState->height, 0, 0, instance, 0);
 
-        Win32D3D11 d3d11 = {};
-        Win32InitScene(gameState, renderGroup, &d3d11, &gameMemory, windowHandle);
+        Win32InitScene(gameState, renderGroup, &gameMemory, windowHandle);
+
+        Win32GameCode gameCode = Win32LoadGameCode("game.dll");
+
+        gameState->api.UpdateMesh = Win32UpdateMesh;
+        gameState->api.UploadModel = Win32UploadModel;
+        gameState->api.UploadTexture = Win32UploadTexture;
+        gameCode.InitGame(gameState, renderGroup, &gameMemory);
 
         if (windowHandle)
         {
@@ -790,7 +834,7 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prevInstance, PSTR cmdLine, int
                 if (gameState->lockCursor) SetCursorPos((gameRect.left + gameRect.right) / 2, (gameRect.top + gameRect.bottom) / 2);
                 ShowCursor(gameState->showCursor);
 
-                Win32RenderOutput(renderGroup, d3d11);
+                Win32RenderOutput(renderGroup);
 
                 f32 elapsed = (f32)(Win32GetPerfCounter() - lastPerfCounter) / perfFrequency;
 

@@ -15,10 +15,16 @@ struct MemoryArena
   size_t size;
 };
 
-#define PUSH_ARRAY(arena, type, count) (type*)PushSize_(arena, sizeof(type) * (count))
-#define PUSH_TYPE(arena, type) (type*)PushSize_(arena, sizeof(type))
-#define PUSH_SIZE(arena, size) PushSize_(arena, size)
-static void* PushSize_(MemoryArena* arena, size_t bytes)
+#define PUSH_MARK(arena, type) (type*)_PushMark(arena)
+static void* _PushMark(MemoryArena* arena)
+{
+  return (void*)((u64)arena->base + arena->used);
+}
+
+#define PUSH_ARRAY(arena, type, count) (type*)_PushSize(arena, sizeof(type) * (count))
+#define PUSH_TYPE(arena, type) (type*)_PushSize(arena, sizeof(type))
+#define PUSH_SIZE(arena, size) _PushSize(arena, size)
+static void* _PushSize(MemoryArena* arena, size_t bytes)
 {
   ASSERT((arena->size - arena->used) >= bytes);
 
@@ -27,10 +33,10 @@ static void* PushSize_(MemoryArena* arena, size_t bytes)
   return result;
 }
 
-#define FREE_ARRAY(arena, location, type, count) FreeSize_(arena, location, sizeof(type) * (count))
-#define FREE_TYPE(arena, location, type) FreeSize_(arena, location, sizeof(type))
-#define FREE_SIZE(arena, location, size) FreeSize_(arena, location, size)
-static void FreeSize_(MemoryArena* arena, void* location, size_t sizeInByte)
+#define FREE_ARRAY(arena, location, type, count) _FreeSize(arena, location, sizeof(type) * (count))
+#define FREE_TYPE(arena, location, type) _FreeSize(arena, location, sizeof(type))
+#define FREE_SIZE(arena, location, size) _FreeSize(arena, location, size)
+static void _FreeSize(MemoryArena* arena, void* location, size_t sizeInByte)
 {
   ASSERT((size_t)((u8*)location - (u8*)arena->base) <= arena->used);
 

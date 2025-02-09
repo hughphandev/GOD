@@ -6,6 +6,7 @@
 //TODO: remove maybe!
 #include "string.h"
 #include "stdio.h"
+#include "stdlib.h"
 
 #define LAMBDA(return_type, function_body) \
 ({ \
