@@ -408,19 +408,10 @@ inline bool IsApproximate(Vec2 a, Vec2 b, f32 delta = EPSILON)
   return Abs(a.x - b.x) < delta && Abs(a.y - b.y) < delta;
 }
 
-inline Vec3 V3(f32 x, f32 y, f32 z)
-{
-  return { x, y, z };
-}
-inline Vec3 V3(Vec2 xy, f32 z)
-{
-  return { xy.x, xy.y, z };
-}
 inline Vec3 operator-(Vec3& a)
 {
   return { -a.x, -a.y, -a.z };
 }
-
 inline Vec3 operator*(Vec3 a, f32 b)
 {
   return { a.x * b, a.y * b, a.z * b };
@@ -531,6 +522,120 @@ inline bool operator>(Vec3 a, f32 b)
   return (a.x > b && a.y > b && a.z > b);
 }
 
+inline Vec3I operator-(Vec3I& a)
+{
+  return { -a.x, -a.y, -a.z };
+}
+inline Vec3I operator*(Vec3I a, s32 b)
+{
+  return { a.x * b, a.y * b, a.z * b };
+}
+inline Vec3I operator*(s32 a, Vec3I b)
+{
+  return b * a;
+}
+inline Vec3I operator/(Vec3I a, s32 b)
+{
+  return { a.x / b, a.y / b, a.z / b };
+}
+inline Vec3I operator+(Vec3I a, s32 b)
+{
+  return { a.x + b, a.y + b, a.z + b };
+}
+inline Vec3I operator-(Vec3I a, s32 b)
+{
+  return { a.x - b, a.y - b, a.z - b };
+}
+inline Vec3I operator*(Vec3I a, Vec3I b)
+{
+  return { a.x * b.x, a.y * b.y, a.z * b.z };
+}
+inline Vec3I operator/(Vec3I a, Vec3I b)
+{
+  return { a.x / b.x, a.y / b.y, a.z / b.z };
+}
+inline Vec3I operator+(Vec3I a, Vec3I b)
+{
+  return { a.x + b.x, a.y + b.y, a.z + b.z };
+}
+inline Vec3I operator-(Vec3I a, Vec3I b)
+{
+  return { a.x - b.x, a.y - b.y, a.z - b.z };
+}
+inline Vec3I operator*=(Vec3I& a, Vec3I b)
+{
+  return a = (a * b);
+}
+inline Vec3I operator/=(Vec3I& a, Vec3I b)
+{
+  return a = (a / b);
+}
+inline Vec3I operator+=(Vec3I& a, Vec3I b)
+{
+  return a = (a + b);
+}
+inline Vec3I operator-=(Vec3I& a, Vec3I b)
+{
+  return a = (a - b);
+}
+inline bool operator==(Vec3I a, Vec3I b)
+{
+  return (a.x == b.x && a.y == b.y && a.z == b.z);
+}
+inline bool operator!=(Vec3I a, Vec3I b)
+{
+  return !(a == b);
+}
+inline bool operator<=(Vec3I a, Vec3I b)
+{
+  return (a.x <= b.x && a.y <= b.y && a.z <= b.z);
+}
+inline bool operator<(Vec3I a, Vec3I b)
+{
+  return (a.x < b.x && a.y < b.y && a.z < b.z);
+}
+inline bool operator>(Vec3I a, Vec3I b)
+{
+  return (a.x > b.x && a.y > b.y && a.z > b.z);
+}
+
+inline Vec3I operator*=(Vec3I& a, s32 b)
+{
+  return a = (a * b);
+}
+inline Vec3I operator/=(Vec3I& a, s32 b)
+{
+  return a = (a / b);
+}
+inline Vec3I operator+=(Vec3I& a, s32 b)
+{
+  return a = (a + b);
+}
+inline Vec3I operator-=(Vec3I& a, s32 b)
+{
+  return a = (a - b);
+}
+inline bool operator==(Vec3I a, s32 b)
+{
+  return (a.x == b && a.y == b && a.z == b);
+}
+inline bool operator!=(Vec3I a, s32 b)
+{
+  return !(a == b);
+}
+inline bool operator<=(Vec3I a, s32 b)
+{
+  return (a.x <= b && a.y <= b && a.z <= b);
+}
+inline bool operator<(Vec3I a, s32 b)
+{
+  return (a.x < b && a.y < b && a.z < b);
+}
+inline bool operator>(Vec3I a, s32 b)
+{
+  return (a.x > b && a.y > b && a.z > b);
+}
+
 inline bool IsApproximate(Vec3 a, Vec3 b, f32 delta = EPSILON)
 {
   return Abs(a.x - b.x) < delta && Abs(a.y - b.y) < delta && Abs(a.z - b.z) < delta;
@@ -564,7 +669,7 @@ inline Vec3 Clamp(Vec3 a, Vec3 min, Vec3 max)
 
 inline Vec3 Round(Vec3 value)
 {
-  return V3(Round(value.x), Round(value.y), Round(value.z));
+  return { Round(value.x), Round(value.y), Round(value.z) };
 }
 
 inline Vec3 Cross(Vec3 a, Vec3 b)

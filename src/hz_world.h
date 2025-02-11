@@ -43,11 +43,8 @@ Vec3 VertexInterp(f32 isolevel, Vec3 p1, Vec3 p2, f32 valp1, f32 valp2)
 
 int MarchingCube(GRIDCELL grid, f32 isolevel, MemoryArena* arena)
 {
-    s32 i, ntriang;
-    s32 cubeindex;
-    Vec3 vertlist[12];
 
-    int edgeTable[256] = {
+    s32 edgeTable[256] = {
     0x0  , 0x109, 0x203, 0x30a, 0x406, 0x50f, 0x605, 0x70c,
     0x80c, 0x905, 0xa0f, 0xb06, 0xc0a, 0xd03, 0xe09, 0xf00,
     0x190, 0x99 , 0x393, 0x29a, 0x596, 0x49f, 0x795, 0x69c,
@@ -80,7 +77,14 @@ int MarchingCube(GRIDCELL grid, f32 isolevel, MemoryArena* arena)
     0x69c, 0x795, 0x49f, 0x596, 0x29a, 0x393, 0x99 , 0x190,
     0xf00, 0xe09, 0xd03, 0xc0a, 0xb06, 0xa0f, 0x905, 0x80c,
     0x70c, 0x605, 0x50f, 0x406, 0x30a, 0x203, 0x109, 0x0 };
-    int triTable[256][16] =
+    s32 edgeConnection[][2] =
+    {
+        { 0, 1 }, { 1, 2 }, { 2, 3 }, { 3, 0 },
+        { 4, 5 }, { 5, 6 }, { 6, 7 }, { 7, 4 },
+        { 0, 4 }, { 1, 5 }, { 2, 6 }, { 3, 7 }
+    };
+
+    s32 triTable[256][16] =
     { {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1},
     {0, 8, 3, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1},
     {0, 1, 9, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1},
@@ -342,59 +346,39 @@ int MarchingCube(GRIDCELL grid, f32 isolevel, MemoryArena* arena)
        Determine the index into the edge table which
        tells us which vertices are inside of the surface
     */
-    cubeindex = 0;
-    for (u32 index = 0; index < 8; ++index)
+    s32 configIndex = 0;
+    for (s32 i = 0; i < 8; ++i)
     {
-        if (grid.val[index] < isolevel) cubeindex |= (1 << index);
+        if (grid.val[i] > isolevel) configIndex |= (1 << i);
     }
 
     /* Cube is entirely in/out of the surface */
-    if (edgeTable[cubeindex] == 0)
+    if (configIndex == 0 || configIndex == 255)
         return(0);
 
-    /* Find the vertices where the surface intersects the cube */
-    if (edgeTable[cubeindex] & 1)
-        vertlist[0] = VertexInterp(isolevel, grid.p[0], grid.p[1], grid.val[0], grid.val[1]);
-    if (edgeTable[cubeindex] & 2)
-        vertlist[1] = VertexInterp(isolevel, grid.p[1], grid.p[2], grid.val[1], grid.val[2]);
-    if (edgeTable[cubeindex] & 4)
-        vertlist[2] = VertexInterp(isolevel, grid.p[2], grid.p[3], grid.val[2], grid.val[3]);
-    if (edgeTable[cubeindex] & 8)
-        vertlist[3] = VertexInterp(isolevel, grid.p[3], grid.p[0], grid.val[3], grid.val[0]);
-    if (edgeTable[cubeindex] & 16)
-        vertlist[4] = VertexInterp(isolevel, grid.p[4], grid.p[5], grid.val[4], grid.val[5]);
-    if (edgeTable[cubeindex] & 32)
-        vertlist[5] = VertexInterp(isolevel, grid.p[5], grid.p[6], grid.val[5], grid.val[6]);
-    if (edgeTable[cubeindex] & 64)
-        vertlist[6] = VertexInterp(isolevel, grid.p[6], grid.p[7], grid.val[6], grid.val[7]);
-    if (edgeTable[cubeindex] & 128)
-        vertlist[7] = VertexInterp(isolevel, grid.p[7], grid.p[4], grid.val[7], grid.val[4]);
-    if (edgeTable[cubeindex] & 256)
-        vertlist[8] = VertexInterp(isolevel, grid.p[0], grid.p[4], grid.val[0], grid.val[4]);
-    if (edgeTable[cubeindex] & 512)
-        vertlist[9] = VertexInterp(isolevel, grid.p[1], grid.p[5], grid.val[1], grid.val[5]);
-    if (edgeTable[cubeindex] & 1024)
-        vertlist[10] = VertexInterp(isolevel, grid.p[2], grid.p[6], grid.val[2], grid.val[6]);
-    if (edgeTable[cubeindex] & 2048)
-        vertlist[11] = VertexInterp(isolevel, grid.p[3], grid.p[7], grid.val[3], grid.val[7]);
+    Vec3 vertlist[12];
+    for (s32 i = 0; i < 12; ++i)
+    {
+        if (edgeTable[configIndex] & (1 << i))
+        {
+            vertlist[i] = (grid.p[edgeConnection[i][0]] + grid.p[edgeConnection[i][1]]) / 2.0f;
+        }
+    }
 
-    /* Create the triangle */
-    ntriang = 0;
-    for (i = 0; triTable[cubeindex][i] != -1; i += 3) {
+    s32 ntriang = 0;
+    for (s32 i = 0; triTable[configIndex][i] != -1; i += 3) {
+        Vec3 v0 = vertlist[triTable[configIndex][i + 0]];
+        Vec3 v1 = vertlist[triTable[configIndex][i + 1]];
+        Vec3 v2 = vertlist[triTable[configIndex][i + 2]];
+
         Vert* verts = PUSH_ARRAY(arena, Vert, 3);
-        Vec3 v0 = vertlist[triTable[cubeindex][i]];
-        Vec3 v1 = vertlist[triTable[cubeindex][i + 1]];
-        Vec3 v2 = vertlist[triTable[cubeindex][i + 2]];
         verts[0].position = v0;
         verts[1].position = v1;
         verts[2].position = v2;
 
-        // verts[0].normal = Cross(v1 - v0, v2 - v1);
-        // verts[1].normal = Cross(v1 - v0, v2 - v1);
-        // verts[2].normal = Cross(v1 - v0, v2 - v1);
+        verts[0].normal = verts[1].normal = verts[2].normal = Cross(v2 - v1, v1 - v0);
         ntriang++;
     }
-
     return(ntriang);
 }
 

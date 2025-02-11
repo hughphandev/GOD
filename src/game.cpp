@@ -32,7 +32,6 @@ HPI void Init(GameState* state, RenderGroup* renderGroup, GameMemory* gameMemory
 {
     state->running = true;
 
-
     for (int i = 0; i < (int)GameMode::TERMINATOR; ++i)
     {
         state->camera[i].worldUp = { 0, 1, 0 };
@@ -53,6 +52,9 @@ HPI void Init(GameState* state, RenderGroup* renderGroup, GameMemory* gameMemory
 
     state->assets[(int)GameAsset::Cube] = LoadAsset("asset\\cube.hza", &gameMemory->persistantArena);
     state->assets[(int)GameAsset::Cube].id = state->api.UploadModel(renderGroup->renderer, state->assets[(int)GameAsset::Cube].loadedModel, &gameMemory->persistantArena);
+    state->assets[(int)GameAsset::Terrain] = LoadAsset("asset\\cube.hza", &gameMemory->persistantArena);
+    state->assets[(int)GameAsset::Terrain].id = state->api.UploadModel(renderGroup->renderer, state->assets[(int)GameAsset::Terrain].loadedModel, &gameMemory->persistantArena);
+
     state->assets[(int)GameAsset::DefaultTexture] = GenAssetTexture(GenTexture(1, 1, { 1, 1, 1, 1 }, &gameMemory->persistantArena));
     state->assets[(int)GameAsset::DefaultTexture].id = state->api.UploadTexture(renderGroup->renderer, state->assets[(int)GameAsset::DefaultTexture].texture, &gameMemory->persistantArena);
 
@@ -66,18 +68,11 @@ HPI void Init(GameState* state, RenderGroup* renderGroup, GameMemory* gameMemory
     spidyMat.textureCount = 1;
     spidyMat.textureId = &state->assets[(int)GameAsset::SpidyTexture].id;
 
+    renderGroup->lightDirection = Normalize(Vec3{ -1, -1, 0 });
+    renderGroup->diffuse = { 1, 1, 1, 1 };
+
     // state->player = CreateEntity({ 0, 0.5f, 0 }, {}, { 1, 1, 1 }, GameAsset::Cube, spidyMat, state);
     // state->player->animIndex = 0;
-
-    Vec3 dirs[] =
-    {
-        {1, 0, 0},
-        {-1, 0, 0},
-        {0, 0, 1},
-        {0, 0, -1},
-    };
-
-    Vec3 current = { 0, -0.5f, 0 };
 }
 
 HPI void Update(GameState* state, RenderGroup* renderGroup, GameMemory* gameMemory)
@@ -176,57 +171,74 @@ HPI void Update(GameState* state, RenderGroup* renderGroup, GameMemory* gameMemo
     // state->player->normalizedTime = div - Floor(div);
 
     PushRenderClear(renderGroup, { 0.5f, 0.5f, 0.5f, 1.0f });
-#define CHUNKS 10
-    LoadedMesh mesh = {};
-    mesh.transform = MAT4_IDENTITY;
-    mesh.vertices = PUSH_MARK(&gameMemory->transientArena, Vert);
-    u32 trisCount = 0;
+#define CHUNKS 16
+
     Material mat = {};
     mat.textureCount = 1;
     mat.textureId = 0;
+    mat.color = { 1, 1, 1, 1 };
+
+    f32* densities = PUSH_ARRAY(&gameMemory->transientArena, f32, CHUNKS * CHUNKS * CHUNKS);
     for (int x = 0; x < CHUNKS; ++x)
     {
         for (int y = 0; y < CHUNKS; ++y)
         {
             for (int z = 0; z < CHUNKS; ++z)
             {
+                Vec3 coord = (state->offset + 10.0f * Vec3{ (f32)x, (f32)y, (f32)z });
+                f32 noise = (Noise(coord.x, coord.y, coord.z) + 1.0f) / 2.0f;
+                densities[(u32)(x * CHUNKS * CHUNKS + y * CHUNKS + z)] = noise;
 
-                // GRIDCELL cell;
-                // cell.p[0] = coords + Vec3{ -0.5f, -0.5f, -0.5f };
-                // cell.p[1] = coords + Vec3{ 0.5f, -0.5f, -0.5f };
-                // cell.p[2] = coords + Vec3{ -0.5f, -0.5f, 0.5f };
-                // cell.p[3] = coords + Vec3{ 0.5f, -0.5f, 0.5f };
-                // cell.p[4] = coords + Vec3{ -0.5f, 0.5f, -0.5f };
-                // cell.p[5] = coords + Vec3{ 0.5f, 0.5f, -0.5f };
-                // cell.p[6] = coords + Vec3{ -0.5f, 0.5f, 0.5f };
-                // cell.p[7] = coords + Vec3{ 0.5f, 0.5f, 0.5f };
-                // for (u32 i = 0; i < ARRAY_COUNT(cell.p); ++i)
-                // {
-                //     cell.val[i] = Noise(cell.p[i].x * 20, cell.p[i].y * 20, cell.p[i].z * 20);
-                // }
-                // trisCount += MarchingCube(cell, 0, &gameMemory->transientArena);
-
-                Vec3 coords = (state->offset + Vec3{ (f32)x, (f32)y, (f32)z }) / 5.0f;
-                mat.color = (Noise(coords.x, coords.y, coords.z) + 1) * Color{ 1, 1, 1, 1 };
-                PushRenderModel(renderGroup, &state->camera[(u32)state->gameMode], state->assets[(u32)GameAsset::Cube].id, mat, TRS({ (f32)x, (f32)y, (f32)z }, {}, { 0.1f, 0.1f, 0.1f }), 0, 0, {}, 0, 0);
+                // mat.color = Color{ 0, noise > 0.5f ? 1.0f : 0, 0, 1 };
+                // PushRenderModel(renderGroup, &state->camera[(u32)state->gameMode], state->assets[(u32)GameAsset::Cube].id, mat, TRS({ (f32)x, (f32)y, (f32)z }, {}, { 0.1f, 0.1f, 0.1f }), 0, 0, {}, 0, 0);
             }
         }
     }
-    // if (trisCount > 0)
-    // {
-    //     mesh.indices = PUSH_ARRAY(&gameMemory->transientArena, u32, trisCount * 3);
-    //     for (u32 i = 0; i < trisCount * 3; ++i)
-    //     {
-    //         mesh.indices[i] = i;
-    //     }
 
-    //     mesh.vertexCount = trisCount * 3;
-    //     mesh.indexCount = trisCount * 3;
+    Vec3 corners[] = {
+        {0, 0, 0},{1, 0, 0},{1, 1, 0},{0, 1, 0},
+        {0, 0, 1},{1, 0, 1},{1, 1, 1},{0, 1, 1}
+    };
 
-    //     state->api.UpdateMesh(renderGroup->renderer, state->assets[(u32)GameAsset::Cube].id, 0, mesh);
-    //     PushRenderModel(renderGroup, &state->camera[(u32)state->gameMode], state->assets[(u32)GameAsset::Cube].id, mat, Translate({ (f32)0, (f32)0, (f32)0 }), 0, 0, {}, 0, 0);
+    LoadedMesh mesh = {};
+    mesh.transform = MAT4_IDENTITY;
+    mesh.vertices = PUSH_MARK(&gameMemory->transientArena, Vert);
+    u32 trisCount = 0;
+    for (int x = 0; x < CHUNKS - 1; ++x)
+    {
+        for (int y = 0; y < CHUNKS - 1; ++y)
+        {
+            for (int z = 0; z < CHUNKS - 1; ++z)
+            {
+                GRIDCELL cell = {};
+                Vec3 pos = Vec3{ (f32)x, (f32)y, (f32)z };
+                for (u32 i = 0; i < ARRAY_COUNT(cell.p); ++i)
+                {
+                    cell.p[i] = pos + corners[i];
+                    cell.val[i] = densities[(u32)(cell.p[i].x * CHUNKS * CHUNKS + cell.p[i].y * CHUNKS + cell.p[i].z)];
+                }
 
-    // }
+                trisCount += MarchingCube(cell, 0.5f, &gameMemory->transientArena);
+            }
+        }
+    }
+
+    if (trisCount > 0)
+    {
+        mesh.indices = PUSH_ARRAY(&gameMemory->transientArena, u32, trisCount * 3);
+        for (u32 i = 0; i < trisCount * 3; ++i)
+        {
+            mesh.indices[i] = i;
+        }
+
+        mesh.vertexCount = trisCount * 3;
+        mesh.indexCount = trisCount * 3;
+
+        mat.color = { 0, 0.5f, 0, 1 };
+        state->api.UpdateMesh(renderGroup->renderer, state->assets[(u32)GameAsset::Terrain].id, 0, mesh);
+        PushRenderModel(renderGroup, &state->camera[(u32)state->gameMode], state->assets[(u32)GameAsset::Terrain].id, mat, MAT4_IDENTITY, 0, 0, {}, 0, 0);
+
+    }
 
     // for (int i = 0; i < ARRAY_COUNT(state->entities); ++i)
     // {

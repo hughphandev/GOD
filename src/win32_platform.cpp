@@ -491,8 +491,8 @@ static void Win32RenderOutput(RenderGroup* renderGroup)
 
         PSPerFrame* psPerFrame = (PSPerFrame*)subRes.pData;
         renderer->deviceContext->Unmap(renderer->psPerFrame, 0);
-        psPerFrame->lightDirection = Normalize(Vec3{ -1, -1, 0 });
-        psPerFrame->diffuse = { 1, 1, 1, 1 };
+        psPerFrame->lightDirection = renderGroup->lightDirection;
+        psPerFrame->diffuse = renderGroup->diffuse;
         renderer->deviceContext->PSSetConstantBuffers(1, 1, &renderer->psPerFrame);
     }
 

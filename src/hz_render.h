@@ -114,6 +114,9 @@ struct RenderGroup
 {
     Renderer* renderer;
     MemoryArena pushBuffer;
+
+    Vec3 lightDirection;
+    Color diffuse;
 };
 
 enum RenderCommandType

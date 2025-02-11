@@ -64,7 +64,7 @@ struct GameAPI
 enum class GameAsset
 {
     Cube,
-    Sphere,
+    Terrain,
     CubeRig,
     DefaultTexture,
     BrickTexture,
