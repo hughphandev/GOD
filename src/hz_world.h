@@ -376,10 +376,75 @@ int MarchingCube(GRIDCELL grid, f32 isolevel, MemoryArena* arena)
         verts[1].position = v1;
         verts[2].position = v2;
 
-        verts[0].normal = verts[1].normal = verts[2].normal = Cross(v2 - v1, v1 - v0);
+        verts[0].normal = verts[1].normal = verts[2].normal = Cross(v0 - v2, v0 - v1);
         ntriang++;
     }
     return(ntriang);
+}
+
+LoadedModel LoadChunk(s32 chunkX, s32 chunkZ, MemoryArena* arena)
+{
+#define CHUNK_SIZE 16
+#define CHUNK_HEIGHT 100
+#define SQUASH_FACTOR 3.0f
+
+    f32* densities = PUSH_ARRAY(arena, f32, CHUNK_SIZE * CHUNK_HEIGHT * CHUNK_SIZE);
+    for (int x = 0; x < CHUNK_SIZE; ++x)
+    {
+        for (int y = 0; y < CHUNK_HEIGHT; ++y)
+        {
+            for (int z = 0; z < CHUNK_SIZE; ++z)
+            {
+                Vec3 globalPos = Vec3{ (f32)x + chunkX * CHUNK_SIZE, (f32)y, (f32)z + chunkZ * CHUNK_SIZE };
+                f32 noise = Noise(globalPos.x * 2, globalPos.y * 2, globalPos.z * 2) - SQUASH_FACTOR * (2.0f * ((f32)y / (f32)CHUNK_HEIGHT) - 1.0f);
+                densities[(u32)(x * CHUNK_SIZE * CHUNK_HEIGHT + y * CHUNK_SIZE + z)] = noise;
+            }
+        }
+    }
+
+    Vec3 corners[] = {
+        {0, 0, 0},{1, 0, 0},{1, 1, 0},{0, 1, 0},
+        {0, 0, 1},{1, 0, 1},{1, 1, 1},{0, 1, 1}
+    };
+
+    LoadedMesh* mesh = PUSH_TYPE(arena, LoadedMesh);
+    mesh->transform = MAT4_IDENTITY;
+    mesh->vertices = PUSH_MARK(arena, Vert);
+    u32 trisCount = 0;
+    for (int x = 0; x < CHUNK_SIZE - 1; ++x)
+    {
+        for (int y = 0; y < CHUNK_HEIGHT - 1; ++y)
+        {
+            for (int z = 0; z < CHUNK_SIZE - 1; ++z)
+            {
+                GRIDCELL cell = {};
+                for (u32 i = 0; i < ARRAY_COUNT(cell.p); ++i)
+                {
+                    Vec3 localPos = Vec3{ (f32)x, (f32)y, (f32)z } + corners[i];
+                    Vec3 globalPos = Vec3{ (f32)x + chunkX * CHUNK_SIZE, (f32)y, (f32)z + chunkZ * CHUNK_SIZE } + corners[i];
+                    cell.p[i] = globalPos;
+                    cell.val[i] = densities[(u32)(localPos.x * CHUNK_SIZE * CHUNK_HEIGHT + localPos.y * CHUNK_SIZE + localPos.z)];
+                }
+
+                trisCount += MarchingCube(cell, 0.0f, arena);
+            }
+        }
+    }
+
+    mesh->indices = PUSH_ARRAY(arena, u32, trisCount * 3);
+    for (u32 i = 0; i < trisCount * 3; ++i)
+    {
+        mesh->indices[i] = i;
+    }
+
+    mesh->vertexCount = trisCount * 3;
+    mesh->indexCount = trisCount * 3;
+
+    LoadedModel terrain = {};
+    terrain.meshCount = 1;
+    terrain.boneCount = 0;
+    terrain.meshes = mesh;
+    return terrain;
 }
 
 #endif

@@ -84,6 +84,12 @@ struct Entity
     bool isEnabled;
 };
 
+struct Chunk
+{
+    u32 modelId;
+    s32 x, z;
+};
+
 struct GameState
 {
     bool running = true;
@@ -93,6 +99,9 @@ struct GameState
     Entity* player;
 
     Asset assets[(int)GameAsset::TERMINATOR];
+
+    // 3x3
+    Chunk chunks[9];
 
     GameMode gameMode;
 
