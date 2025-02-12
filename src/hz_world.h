@@ -386,18 +386,20 @@ LoadedModel LoadChunk(s32 chunkX, s32 chunkZ, MemoryArena* arena)
 {
 #define CHUNK_SIZE 16
 #define CHUNK_HEIGHT 100
+#define CHUNK_GRID_SIZE (CHUNK_SIZE + 1)
+#define CHUNK_GRID_HEIGHT (CHUNK_HEIGHT + 1)
 #define SQUASH_FACTOR 3.0f
 
-    f32* densities = PUSH_ARRAY(arena, f32, CHUNK_SIZE * CHUNK_HEIGHT * CHUNK_SIZE);
-    for (int x = 0; x < CHUNK_SIZE; ++x)
+    f32* densities = PUSH_ARRAY(arena, f32, CHUNK_GRID_SIZE * CHUNK_GRID_HEIGHT * CHUNK_GRID_SIZE);
+    for (int x = 0; x < CHUNK_GRID_SIZE; ++x)
     {
-        for (int y = 0; y < CHUNK_HEIGHT; ++y)
+        for (int y = 0; y < CHUNK_GRID_HEIGHT; ++y)
         {
-            for (int z = 0; z < CHUNK_SIZE; ++z)
+            for (int z = 0; z < CHUNK_GRID_SIZE; ++z)
             {
                 Vec3 globalPos = Vec3{ (f32)x + chunkX * CHUNK_SIZE, (f32)y, (f32)z + chunkZ * CHUNK_SIZE };
-                f32 noise = Noise(globalPos.x * 2, globalPos.y * 2, globalPos.z * 2) - SQUASH_FACTOR * (2.0f * ((f32)y / (f32)CHUNK_HEIGHT) - 1.0f);
-                densities[(u32)(x * CHUNK_SIZE * CHUNK_HEIGHT + y * CHUNK_SIZE + z)] = noise;
+                f32 noise = Noise(globalPos.x * 2, globalPos.y * 2, globalPos.z * 2) - SQUASH_FACTOR * (2.0f * ((f32)y / (f32)CHUNK_GRID_HEIGHT) - 1.0f);
+                densities[(u32)(x * CHUNK_GRID_SIZE * CHUNK_GRID_HEIGHT + y * CHUNK_GRID_SIZE + z)] = noise;
             }
         }
     }
@@ -411,11 +413,11 @@ LoadedModel LoadChunk(s32 chunkX, s32 chunkZ, MemoryArena* arena)
     mesh->transform = MAT4_IDENTITY;
     mesh->vertices = PUSH_MARK(arena, Vert);
     u32 trisCount = 0;
-    for (int x = 0; x < CHUNK_SIZE - 1; ++x)
+    for (int x = 0; x < CHUNK_SIZE; ++x)
     {
         for (int y = 0; y < CHUNK_HEIGHT - 1; ++y)
         {
-            for (int z = 0; z < CHUNK_SIZE - 1; ++z)
+            for (int z = 0; z < CHUNK_SIZE; ++z)
             {
                 GRIDCELL cell = {};
                 for (u32 i = 0; i < ARRAY_COUNT(cell.p); ++i)
@@ -423,7 +425,7 @@ LoadedModel LoadChunk(s32 chunkX, s32 chunkZ, MemoryArena* arena)
                     Vec3 localPos = Vec3{ (f32)x, (f32)y, (f32)z } + corners[i];
                     Vec3 globalPos = Vec3{ (f32)x + chunkX * CHUNK_SIZE, (f32)y, (f32)z + chunkZ * CHUNK_SIZE } + corners[i];
                     cell.p[i] = globalPos;
-                    cell.val[i] = densities[(u32)(localPos.x * CHUNK_SIZE * CHUNK_HEIGHT + localPos.y * CHUNK_SIZE + localPos.z)];
+                    cell.val[i] = densities[(u32)(localPos.x * CHUNK_GRID_SIZE * CHUNK_GRID_HEIGHT + localPos.y * CHUNK_GRID_SIZE + localPos.z)];
                 }
 
                 trisCount += MarchingCube(cell, 0.0f, arena);
