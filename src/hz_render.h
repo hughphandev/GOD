@@ -123,6 +123,7 @@ enum RenderCommandType
 {
     RC_RenderCommandClear,
     RC_RenderCommandModel,
+    RC_RenderCommandVoxel,
 };
 
 struct RenderCommandHeader
@@ -147,6 +148,10 @@ struct RenderCommandModel
     Mat4 transform;
     NodeTransform* nodeTransforms;
     u32 channelCount;
+};
+
+struct RenderCommandVoxel
+{
 };
 
 // Implementation
@@ -187,5 +192,14 @@ void PushRenderModel(RenderGroup* renderGroup, Camera* camera, u32 modelId, Mate
     command->nodeTransforms = trans;
     command->channelCount = tranCount;
 }
+
+void PushRenderVoxel(RenderGroup* renderGroup)
+{
+    RenderCommandVoxel* command = PUSH_RENDER_ELEMENT(renderGroup, RenderCommandVoxel);
+}
+
+typedef void UpdateMesh(Renderer* renderContext, u32 modelId, u32 meshId, LoadedMesh mesh);
+typedef u32 UploadModel(Renderer* renderContext, LoadedModel initialModel, MemoryArena* arena);
+typedef u32 UploadTexture(Renderer* renderContext, Texture texture, MemoryArena* arena);
 
 #endif

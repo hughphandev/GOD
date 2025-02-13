@@ -19,7 +19,7 @@ cbuffer VSPerInstance : register(b0)
   bool isSkinnedMesh;
 };
 
-VSOut vs_main(VSIn input) {
+VSOut VSMain(VSIn input) {
   VSOut output = (VSOut)0; // zero the memory first
 matrix boneTransform =
     bones[input.boneIds[0]] * input.weights[0] +

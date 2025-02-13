@@ -50,9 +50,6 @@ enum class GameMode
     TERMINATOR,
 };
 
-typedef void UpdateMesh(Renderer* renderContext, u32 modelId, u32 meshId, LoadedMesh mesh);
-typedef u32 UploadModel(Renderer* renderContext, LoadedModel initialModel, MemoryArena* arena);
-typedef u32 UploadTexture(Renderer* renderContext, Texture texture, MemoryArena* arena);
 
 struct GameAPI
 {

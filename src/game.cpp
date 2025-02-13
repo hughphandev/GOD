@@ -183,16 +183,18 @@ HPI void Update(GameState* state, RenderGroup* renderGroup, GameMemory* gameMemo
     PushRenderClear(renderGroup, { 0.5f, 0.5f, 0.5f, 1.0f });
 
 
-    Material mat = {};
-    mat.textureCount = 1;
-    mat.textureId = 0;
-    mat.color = { 1, 1, 1, 1 };
+    // Material mat = {};
+    // mat.textureCount = 1;
+    // mat.textureId = 0;
+    // mat.color = { 1, 1, 1, 1 };
 
-    for (u32 i = 0; i < ARRAY_COUNT(state->chunks); ++i)
-    {
-        PushRenderModel(renderGroup, &state->camera[(u32)state->gameMode], state->chunks[i].modelId, mat, MAT4_IDENTITY, 0, 0, {}, 0, 0);
-    }
-    PushRenderModel(renderGroup, &state->camera[(u32)state->gameMode], state->assets[(u32)GameAsset::Cube].id, mat, Translate({ 0, 70, 0 }), 0, 0, {}, 0, 0);
+    // for (u32 i = 0; i < ARRAY_COUNT(state->chunks); ++i)
+    // {
+    //     PushRenderModel(renderGroup, &state->camera[(u32)state->gameMode], state->chunks[i].modelId, mat, MAT4_IDENTITY, 0, 0, {}, 0, 0);
+    // }
+    // PushRenderModel(renderGroup, &state->camera[(u32)state->gameMode], state->assets[(u32)GameAsset::Cube].id, mat, Translate({ 0, 70, 0 }), 0, 0, {}, 0, 0);
+
+    PushRenderVoxel(renderGroup);
 
     // for (int i = 0; i < ARRAY_COUNT(state->entities); ++i)
     // {

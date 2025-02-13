@@ -1,7 +1,7 @@
 @echo off
 set CFlags=-DDEBUG -DSLOW=1 -D_CRT_SECURE_NO_WARNINGS -W4 -MT -wd4100 -wd4189 -wd4201 -wd4505 -wd4838 -wd4324 -nologo -Oi -Od -fp:fast -GR- -Gm- -Z7 -EHa
 
-set LDLibs= gdi32.lib msvcrt.lib winmm.lib User32.lib D3D11.lib D3DCompiler.lib dxgi.lib
+set LDLibs=gdi32.lib msvcrt.lib winmm.lib User32.lib D3D11.lib D3DCompiler.lib dxgi.lib vulkan-1.lib
 
 set LDFlags=-incremental:no /NODEFAULTLIB:libcmt 
 
@@ -16,8 +16,8 @@ set BuildAssetDir=%BuildDir%\asset
 set SourceDir=%ProjectDir%\src
 set AssetDir=%ProjectDir%\asset
 set ShaderDir=%SourceDir%\shader
-set VendorInclude=%SourceDir%\vendor\include
-set VendorLibs=%SourceDir%\vendor\lib 
+set VendorInclude=/I%SourceDir%\vendor\include /I%VULKAN_SDK%\Include
+set VendorLibs=/LIBPATH:%SourceDir%\vendor\lib /LIBPATH:%VULKAN_SDK%\Lib
 
 set ObjDir=%BuildDir%\obj
 
@@ -33,18 +33,21 @@ REM Clean up
    del %BuildDir%\*.pdb
 
 REM Compile Shader
-	fxc /Od /Zi /T vs_5_0 /E:vs_main /Fo %BuildDir%\default_vs.fxo %ShaderDir%\default_vs.hlsl
-	fxc /Od /Zi /T ps_5_0 /E:ps_main /Fo %BuildDir%\default_ps.fxo %ShaderDir%\default_ps.hlsl
+	fxc /Od /Zi /T vs_5_0 /E:VSMain /Fo %BuildDir%\default_vs.fxo %ShaderDir%\default_vs.hlsl
+	fxc /Od /Zi /T ps_5_0 /E:PSMain /Fo %BuildDir%\default_ps.fxo %ShaderDir%\default_ps.hlsl
+	fxc /Od /Zi /T vs_5_0 /E:VSMain /Fo %BuildDir%\voxel_vs.fxo %ShaderDir%\voxel_vs.hlsl
+	fxc /Od /Zi /T ps_5_0 /E:PSMain /Fo %BuildDir%\voxel_ps.fxo %ShaderDir%\voxel_ps.hlsl
+	fxc /Od /Zi /T ps_5_0 /E:CSMain /Fo %BuildDir%\voxel_cs.fxo %ShaderDir%\voxel_cs.hlsl
 
 REM Asset Packer code
-	cl %CFlags% /I%VendorInclude% /Fo:%ObjDir% /Fd:%ObjDir% %AssetPackerFile% /link %LDFlags% %LDLibs% assimp-vc143-mt.lib /LIBPATH:%VendorLibs% /OUT:%BuildDir%\AssetPacker.exe 
+	cl %CFlags% %VendorInclude% /Fo:%ObjDir% /Fd:%ObjDir% %AssetPackerFile% /link %LDFlags% %LDLibs% assimp-vc143-mt.lib %VendorLibs% /OUT:%BuildDir%\AssetPacker.exe 
 
 
 @REM REM Game code
-	cl -DLIBRARY_EXPORTS %CFlags% /I%VendorInclude% /Fo:%ObjDir% /Fd:%ObjDir% %GameFile% /link /DLL %LDFlags% %LDLibs% /LIBPATH:%VendorLibs% /OUT:%BuildDir%\game_temp.dll /PDB:%BuildDir%\game_%DATETIME%.pdb
+	cl -DLIBRARY_EXPORTS %CFlags% %VendorInclude% /Fo:%ObjDir% /Fd:%ObjDir% %GameFile% /link /DLL %LDFlags% %LDLibs% %VendorLibs% /OUT:%BuildDir%\game_temp.dll /PDB:%BuildDir%\game_%DATETIME%.pdb
 
 REM Platform code
-	cl %CFlags% /I%VendorInclude% /Fo:%ObjDir% /Fd:%ObjDir% %PlatformFiles% /link %LDFlags% %LDLibs% /LIBPATH:%VendorLibs% /OUT:%BuildDir%\GOD.exe 
+	cl %CFlags% %VendorInclude% /Fo:%ObjDir% /Fd:%ObjDir% %PlatformFiles% /link %LDFlags% %LDLibs% %VendorLibs% /OUT:%BuildDir%\GOD.exe 
 
 REM Test code
 	@REM cl %CFlags% /I%ProjectDir% /I%IncludeDir% /Fo:%ObjDir% /Fd:%ObjDir% %TestDir%\test.cpp /link %LDFlags% %LDLibs% /OUT:%BuildDir%\test.exe

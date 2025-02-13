@@ -21,7 +21,7 @@ Texture2D meshTexture;
 SamplerState MeshTextureSampler;
 
 
-PSOut ps_main(VSOut input) {
+PSOut PSMain(VSOut input) {
   PSOut output = (PSOut)0;
   float intensity = dot(input.normal, -lightDirection);
   intensity = intensity + 1;

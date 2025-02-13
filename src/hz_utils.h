@@ -169,13 +169,13 @@ inline char* Copy(char* des, const char* src, int count)
 }
 
 #ifdef DEBUG
-#define LOGINFO(string, ...) fprintf(stdout, string, __VA_ARGS__);
-#define LOGWARNING(string, ...) fprintf(stdout, string, __VA_ARGS__);
-#define LOGERROR(string, ...) fprintf(stderr, string, __VA_ARGS__);
+#define LOG_INFO(string, ...) fprintf(stdout, string, __VA_ARGS__);
+#define LOG_WARNING(string, ...) fprintf(stdout, string, __VA_ARGS__);
+#define LOG_ERROR(string, ...) fprintf(stderr, string, __VA_ARGS__);
 #elif
-#define LOGINFO(string, ...)
-#define LOGWARNING(string, ...) 
-#define LOGERROR(string, ...) 
+#define LOG_INFO(string, ...)
+#define LOG_WARNING(string, ...) 
+#define LOG_ERROR(string, ...) 
 #endif
 
 
