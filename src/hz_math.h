@@ -227,19 +227,9 @@ inline s32 Clamp(s32 a, s32 min, s32 max)
   return result;
 }
 
-inline f32 Min(f32 a, f32 b)
-{
-  return a < b ? a : b;
-}
-
 inline u32 RoundToU32(f32 value)
 {
   return (u32)(value + 0.5f);
-}
-
-inline f32 Max(f32 a, f32 b)
-{
-  return a > b ? a : b;
 }
 
 inline Vec2 V2(f32 x, f32 y)

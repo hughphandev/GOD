@@ -147,6 +147,18 @@ inline int FindLastIndex(const T* c, T target, int len)
   return INVALID_VALUE;
 }
 
+template <typename T>
+inline T Min(T value1, T value2)
+{
+  return value1 < value2 ? value1 : value2;
+}
+
+template <typename T>
+inline T Max(T value1, T value2)
+{
+  return value1 > value2 ? value1 : value2;
+}
+
 inline int FindLastIndex(const char* c, char target)
 {
   int result = INVALID_VALUE;
@@ -166,6 +178,16 @@ inline char* Copy(char* des, const char* src)
 inline char* Copy(char* des, const char* src, int count)
 {
   return strncpy(des, src, count);
+}
+
+inline char* StringCat(char* des, const char* src)
+{
+  return strcat(des, src);
+}
+
+inline bool OverlapFlag(u32 f1, u32 f2)
+{
+  return (f1 & f2) != 0;
 }
 
 #ifdef DEBUG

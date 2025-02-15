@@ -52,11 +52,11 @@ HPI void Init(GameState* state, RenderGroup* renderGroup, GameMemory* gameMemory
     // state->assets[(int)GameAsset::BrickTexture] = LoadAsset("asset\\brick-texture-2106361449.hza", &gameMemory->persistantArena);
     // state->assets[(int)GameAsset::SpidyTexture] = LoadAsset("asset\\Char_GhostSpider_D.hza", &gameMemory->persistantArena);
 
-    state->assets[(int)GameAsset::Cube] = LoadAsset("asset\\cube.hza", &gameMemory->persistantArena);
-    state->assets[(int)GameAsset::Cube].id = state->api.UploadModel(renderGroup->renderer, state->assets[(int)GameAsset::Cube].loadedModel, &gameMemory->persistantArena);
+    // state->assets[(int)GameAsset::Cube] = LoadAsset("asset\\cube.hza", &gameMemory->persistantArena);
+    // state->assets[(int)GameAsset::Cube].id = state->api.UploadModel(renderGroup->renderer, state->assets[(int)GameAsset::Cube].loadedModel, &gameMemory->persistantArena);
 
-    state->assets[(int)GameAsset::DefaultTexture] = GenAssetTexture(GenTexture(1, 1, { 1, 1, 1, 1 }, &gameMemory->persistantArena));
-    state->assets[(int)GameAsset::DefaultTexture].id = state->api.UploadTexture(renderGroup->renderer, state->assets[(int)GameAsset::DefaultTexture].texture, &gameMemory->persistantArena);
+    // state->assets[(int)GameAsset::DefaultTexture] = GenAssetTexture(GenTexture(1, 1, { 1, 1, 1, 1 }, &gameMemory->persistantArena));
+    // state->assets[(int)GameAsset::DefaultTexture].id = state->api.UploadTexture(renderGroup->renderer, state->assets[(int)GameAsset::DefaultTexture].texture, &gameMemory->persistantArena);
 
     Material brickMat = {};
     brickMat.color = { 1, 1, 1, 1 };
@@ -71,15 +71,15 @@ HPI void Init(GameState* state, RenderGroup* renderGroup, GameMemory* gameMemory
     renderGroup->lightDirection = Normalize(Vec3{ -1, 0, 0 });
     renderGroup->diffuse = { 1, 1, 1, 1 };
 
-    for (s32 x = 0; x < 3; ++x)
-    {
-        for (s32 z = 0; z < 3; ++z)
-        {
-            state->chunks[x * 3 + z].x = x;
-            state->chunks[x * 3 + z].z = z;
-            state->chunks[x * 3 + z].modelId = state->api.UploadModel(renderGroup->renderer, LoadChunk(x - 1, z - 1, &gameMemory->transientArena), &gameMemory->persistantArena);
-        }
-    }
+    // for (s32 x = 0; x < 3; ++x)
+    // {
+    //     for (s32 z = 0; z < 3; ++z)
+    //     {
+    //         state->chunks[x * 3 + z].x = x;
+    //         state->chunks[x * 3 + z].z = z;
+    //         state->chunks[x * 3 + z].modelId = state->api.UploadModel(renderGroup->renderer, LoadChunk(x - 1, z - 1, &gameMemory->transientArena), &gameMemory->persistantArena);
+    //     }
+    // }
 
     // state->player = CreateEntity({ 0, 0.5f, 0 }, {}, { 1, 1, 1 }, GameAsset::Cube, spidyMat, state);
     // state->player->animIndex = 0;
@@ -194,7 +194,7 @@ HPI void Update(GameState* state, RenderGroup* renderGroup, GameMemory* gameMemo
     // }
     // PushRenderModel(renderGroup, &state->camera[(u32)state->gameMode], state->assets[(u32)GameAsset::Cube].id, mat, Translate({ 0, 70, 0 }), 0, 0, {}, 0, 0);
 
-    PushRenderVoxel(renderGroup);
+    // PushRenderVoxel(renderGroup);
 
     // for (int i = 0; i < ARRAY_COUNT(state->entities); ++i)
     // {

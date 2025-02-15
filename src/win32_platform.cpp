@@ -1,6 +1,7 @@
 #define WIN32_LEAN_AND_MEAN
 
 #include <windows.h>
+#include <windowsx.h>
 
 #include <timeapi.h>
 
@@ -8,7 +9,7 @@
 #include "hz_utils.h"
 #include "hz_math.h"
 #include "hz_vulkan.h"
-#include "hz_d3d11.h"
+// #include "hz_d3d11.h"
 #include "game.h"
 
 typedef decltype(Init) GameInit;
@@ -60,141 +61,6 @@ void Win32ReloadGameCode(Win32GameCode* gameCode)
     }
 }
 
-static void Win32RenderOutput(RenderGroup* renderGroup)
-{
-    Renderer* renderer = renderGroup->renderer;
-    {
-        D3D11_MAPPED_SUBRESOURCE subRes;
-        renderer->deviceContext->Map(renderer->vsPerFrame, 0, D3D11_MAP_WRITE_DISCARD, 0, &subRes);
-
-        VSPerFrame* vsPerFrame = (VSPerFrame*)subRes.pData;
-        renderer->deviceContext->Unmap(renderer->vsPerFrame, 0);
-        renderer->deviceContext->VSSetConstantBuffers(1, 1, &renderer->vsPerFrame);
-    }
-
-    {
-        D3D11_MAPPED_SUBRESOURCE subRes;
-        renderer->deviceContext->Map(renderer->psPerFrame, 0, D3D11_MAP_WRITE_DISCARD, 0, &subRes);
-
-        PSPerFrame* psPerFrame = (PSPerFrame*)subRes.pData;
-        renderer->deviceContext->Unmap(renderer->psPerFrame, 0);
-        psPerFrame->lightDirection = renderGroup->lightDirection;
-        psPerFrame->diffuse = renderGroup->diffuse;
-        renderer->deviceContext->PSSetConstantBuffers(1, 1, &renderer->psPerFrame);
-    }
-
-    for (void* base = renderGroup->pushBuffer.base; base < (u8*)renderGroup->pushBuffer.base + renderGroup->pushBuffer.used;)
-    {
-        RenderCommandHeader* header = (RenderCommandHeader*)base;
-        base = (u8*)base + sizeof(*header);
-        switch (header->type)
-        {
-            case RC_RenderCommandClear:
-            {
-                RenderCommandClear* entry = (RenderCommandClear*)base;
-
-                renderer->deviceContext->ClearRenderTargetView(renderer->renderTargetView, entry->color.e);
-                renderer->deviceContext->ClearDepthStencilView(renderer->depthStencilView, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0);
-
-                base = (u8*)base + sizeof(*entry);
-            } break;
-
-            case RC_RenderCommandModel:
-            {
-                RenderCommandModel* entry = (RenderCommandModel*)base;
-
-                D3D11Model model = renderer->models[entry->modelId];
-                for (u32 i = 0; i < model.meshCount; ++i)
-                {
-                    {
-                        D3D11_MAPPED_SUBRESOURCE subRes;
-
-                        renderer->deviceContext->Map(model.meshes[i].vsPerInstance, 0, D3D11_MAP_WRITE_DISCARD, 0, &subRes);
-
-                        VSPerInstance* vsPerInstance = (VSPerInstance*)subRes.pData;
-                        Mat4 worldTransform = model.meshes[i].transform * entry->transform;
-                        vsPerInstance->mvp = GetPerspectiveProjection(entry->camera->fovy, entry->camera->aspect, 0.1f, 100.0f) * GetViewMatrix(entry->camera->position, entry->camera->direction, entry->camera->worldUp) * worldTransform;
-                        vsPerInstance->model = worldTransform;
-                        vsPerInstance->isSkinnedMesh = entry->boneCount > 0;
-                        MemSet(vsPerInstance->bones, 0, sizeof(vsPerInstance->bones));
-                        for (u32 boneIndex = 0; boneIndex < entry->boneCount; ++boneIndex)
-                        {
-                            Mat4 transform = MAT4_IDENTITY;
-                            for (int id = boneIndex; id != INVALID_VALUE; id = entry->bones[id].parentIndex)
-                            {
-                                u32 channelIndex = FindFirstIndex(entry->nodeTransforms, entry->channelCount, id);
-
-                                if (channelIndex >= 0)
-                                {
-                                    transform = entry->nodeTransforms[channelIndex].transform * transform;
-                                    break;
-                                }
-                                else
-                                {
-                                    transform = entry->bones[id].localMatrix * transform;
-                                }
-                            }
-                            vsPerInstance->bones[boneIndex] = entry->globalInverseTransform * transform * entry->bones[boneIndex].offsetMatrix;
-                        }
-                        renderer->deviceContext->Unmap(model.meshes[i].vsPerInstance, 0);
-                    }
-
-                    {
-                        D3D11_MAPPED_SUBRESOURCE subRes;
-                        renderer->deviceContext->Map(model.meshes[i].psPerInstance, 0, D3D11_MAP_WRITE_DISCARD, 0, &subRes);
-
-                        PSPerInstance* psPerInstance = (PSPerInstance*)subRes.pData;
-                        psPerInstance->color = entry->mat.color;
-
-                        renderer->deviceContext->Unmap(model.meshes[i].psPerInstance, 0);
-                    }
-
-                    renderer->deviceContext->VSSetShader(renderer->vsDefaultShader, 0, 0);
-                    renderer->deviceContext->PSSetShader(renderer->psDefaultShader, 0, 0);
-                    renderer->deviceContext->VSSetConstantBuffers(0, 1, &model.meshes[i].vsPerInstance);
-                    renderer->deviceContext->PSSetConstantBuffers(0, 1, &model.meshes[i].psPerInstance);
-                    renderer->deviceContext->IASetVertexBuffers(0, 1, &model.meshes[i].vertexBuffer, model.meshes[i].stride, model.meshes[i].offset);
-                    renderer->deviceContext->IASetIndexBuffer(model.meshes[i].indexBuffer, DXGI_FORMAT_R32_UINT, 0);
-                    renderer->deviceContext->IASetInputLayout(model.meshes[i].inputLayout);
-                    if (entry->mat.textureId)
-                    {
-                        renderer->deviceContext->PSSetShaderResources(0, 1, &renderer->textures[entry->mat.textureId[model.meshes[i].shaderResIndex]].shaderRes);
-                    }
-                    else
-                    {
-                        renderer->deviceContext->PSSetShaderResources(0, 1, &renderer->textures[0].shaderRes);
-                    }
-                    renderer->deviceContext->PSSetSamplers(0, 1, &model.meshes[i].samplerState);
-                    renderer->deviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-                    renderer->deviceContext->OMSetRenderTargets(1, &renderer->renderTargetView, renderer->depthStencilView);
-
-                    renderer->deviceContext->DrawIndexed(model.meshes[i].indexCount, 0, 0);
-
-                }
-                base = (u8*)base + sizeof(*entry);
-            } break;
-
-            case RC_RenderCommandVoxel:
-            {
-                RenderCommandVoxel* entry = (RenderCommandVoxel*)base;
-
-                renderer->deviceContext->VSSetShader(renderer->vsVoxelShader, 0, 0);
-                renderer->deviceContext->PSSetShader(renderer->psVoxelShader, 0, 0);
-                renderer->deviceContext->IASetInputLayout(NULL);
-                renderer->deviceContext->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
-                renderer->deviceContext->OMSetRenderTargets(1, &renderer->renderTargetView, NULL);
-
-                renderer->deviceContext->Draw(4, 0);
-
-                base = (u8*)base + sizeof(*entry);
-            } break;
-
-            default:
-                break;
-        }
-    }
-    renderer->swapChain->Present(0, 0);
-}
 
 inline static u64 Win32GetPerfCounter()
 {
@@ -380,8 +246,6 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prevInstance, PSTR cmdLine, int
 
     RenderGroup* renderGroup = PUSH_TYPE(&gameMemory.persistantArena, RenderGroup);
     InitMemoryArena(&renderGroup->pushBuffer, pushBufferSize, (u8*)memory + persistantArenaSize + transientArenaSize);
-    Renderer renderer = {};
-    renderGroup->renderer = &renderer;
 
     gameState->width = 1280;
     gameState->height = 720;
@@ -401,15 +265,6 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prevInstance, PSTR cmdLine, int
     {
         HWND windowHandle = CreateWindowEx(0, windowClass.lpszClassName, windowClass.lpszClassName, WS_OVERLAPPEDWINDOW | WS_VISIBLE, CW_USEDEFAULT, CW_USEDEFAULT, gameState->width, gameState->height, 0, 0, instance, 0);
 
-        D3D11InitScene(gameState->width, gameState->height, renderGroup, &gameMemory.persistantArena, windowHandle);
-        VKInit("GOD");
-
-        Win32GameCode gameCode = Win32LoadGameCode("game.dll");
-
-        gameState->api.UpdateMesh = Win32UpdateMesh;
-        gameState->api.UploadModel = Win32UploadModel;
-        gameState->api.UploadTexture = Win32UploadTexture;
-        gameCode.InitGame(gameState, renderGroup, &gameMemory);
 
         if (windowHandle)
         {
@@ -418,8 +273,19 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prevInstance, PSTR cmdLine, int
             rawInputDevices[0].usUsage = 0x02;      // Mouse
             rawInputDevices[0].dwFlags = 0;
             rawInputDevices[0].hwndTarget = windowHandle;
-
             RegisterRawInputDevices(rawInputDevices, 1, sizeof(RAWINPUTDEVICE));
+
+            Renderer renderer = {};
+            renderGroup->renderer = &renderer;
+            // D3D11InitScene(gameState->width, gameState->height, renderGroup, &gameMemory.persistantArena, windowHandle);
+            VKInit(renderGroup->renderer, instance, windowHandle, "GOD", &gameMemory.persistantArena);
+
+            Win32GameCode gameCode = Win32LoadGameCode("game.dll");
+
+            gameState->api.UpdateMesh = {}; //Win32UpdateMesh;
+            gameState->api.UploadModel = {}; //Win32UploadModel;
+            gameState->api.UploadTexture = {}; //Win32UploadTexture;
+            gameCode.InitGame(gameState, renderGroup, &gameMemory);
 
             bool timeIsGranular = timeBeginPeriod(1) == TIMERR_NOERROR;
             u64 lastPerfCounter = Win32GetPerfCounter();
@@ -437,7 +303,8 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prevInstance, PSTR cmdLine, int
                 if (gameState->lockCursor) SetCursorPos((gameRect.left + gameRect.right) / 2, (gameRect.top + gameRect.bottom) / 2);
                 ShowCursor(gameState->showCursor);
 
-                Win32RenderOutput(renderGroup);
+                // D3D11RenderOutput(renderGroup);
+                VkRenderOutput(renderGroup);
 
                 f32 elapsed = (f32)(Win32GetPerfCounter() - lastPerfCounter) / perfFrequency;
 

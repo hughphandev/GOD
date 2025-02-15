@@ -280,7 +280,7 @@ static u32 Win32UploadTexture(Renderer* renderer, Texture texture, MemoryArena* 
 }
 
 
-static void D3D11InitScene(u32 width, u32 height, RenderGroup* renderGroup, MemoryArena* arena, HWND windowHandle)
+static void D3D11InitScene(u32 width, u32 height, Renderer* renderer, MemoryArena* arena, HWND windowHandle)
 {
     DXGI_SWAP_CHAIN_DESC swapChainDesc = {};
     swapChainDesc.BufferDesc.Width = width;
@@ -299,11 +299,10 @@ static void D3D11InitScene(u32 width, u32 height, RenderGroup* renderGroup, Memo
     swapChainDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
     swapChainDesc.Flags = 0;
 
-    HRESULT result = D3D11CreateDeviceAndSwapChain(0, D3D_DRIVER_TYPE_HARDWARE, 0, D3D11_CREATE_DEVICE_DEBUG, 0, 0, D3D11_SDK_VERSION, &swapChainDesc, &renderGroup->renderer->swapChain, &renderGroup->renderer->device, 0, &renderGroup->renderer->deviceContext);
+    HRESULT result = D3D11CreateDeviceAndSwapChain(0, D3D_DRIVER_TYPE_HARDWARE, 0, D3D11_CREATE_DEVICE_DEBUG, 0, 0, D3D11_SDK_VERSION, &swapChainDesc, &renderer->swapChain, &renderer->device, 0, &renderer->deviceContext);
 
     if (SUCCEEDED(result))
     {
-        Renderer* renderer = renderGroup->renderer;
         ID3D11Texture2D* frameBuffer;
         if (!SUCCEEDED(renderer->swapChain->GetBuffer(0, __uuidof(ID3D11Texture2D), (void**)&frameBuffer)))
         {
@@ -436,5 +435,142 @@ static void D3D11InitScene(u32 width, u32 height, RenderGroup* renderGroup, Memo
         renderer->deviceContext->RSSetViewports(1, &viewPort);
     }
 }
+
+static void D3D11RenderOutput(RenderGroup* renderGroup)
+{
+    Renderer* renderer = renderGroup->renderer;
+    {
+        D3D11_MAPPED_SUBRESOURCE subRes;
+        renderer->deviceContext->Map(renderer->vsPerFrame, 0, D3D11_MAP_WRITE_DISCARD, 0, &subRes);
+
+        VSPerFrame* vsPerFrame = (VSPerFrame*)subRes.pData;
+        renderer->deviceContext->Unmap(renderer->vsPerFrame, 0);
+        renderer->deviceContext->VSSetConstantBuffers(1, 1, &renderer->vsPerFrame);
+    }
+
+    {
+        D3D11_MAPPED_SUBRESOURCE subRes;
+        renderer->deviceContext->Map(renderer->psPerFrame, 0, D3D11_MAP_WRITE_DISCARD, 0, &subRes);
+
+        PSPerFrame* psPerFrame = (PSPerFrame*)subRes.pData;
+        renderer->deviceContext->Unmap(renderer->psPerFrame, 0);
+        psPerFrame->lightDirection = renderGroup->lightDirection;
+        psPerFrame->diffuse = renderGroup->diffuse;
+        renderer->deviceContext->PSSetConstantBuffers(1, 1, &renderer->psPerFrame);
+    }
+
+    for (void* base = renderGroup->pushBuffer.base; base < (u8*)renderGroup->pushBuffer.base + renderGroup->pushBuffer.used;)
+    {
+        RenderCommandHeader* header = (RenderCommandHeader*)base;
+        base = (u8*)base + sizeof(*header);
+        switch (header->type)
+        {
+            case RC_RenderCommandClear:
+            {
+                RenderCommandClear* entry = (RenderCommandClear*)base;
+
+                renderer->deviceContext->ClearRenderTargetView(renderer->renderTargetView, entry->color.e);
+                renderer->deviceContext->ClearDepthStencilView(renderer->depthStencilView, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0);
+
+                base = (u8*)base + sizeof(*entry);
+            } break;
+
+            case RC_RenderCommandModel:
+            {
+                RenderCommandModel* entry = (RenderCommandModel*)base;
+
+                D3D11Model model = renderer->models[entry->modelId];
+                for (u32 i = 0; i < model.meshCount; ++i)
+                {
+                    {
+                        D3D11_MAPPED_SUBRESOURCE subRes;
+
+                        renderer->deviceContext->Map(model.meshes[i].vsPerInstance, 0, D3D11_MAP_WRITE_DISCARD, 0, &subRes);
+
+                        VSPerInstance* vsPerInstance = (VSPerInstance*)subRes.pData;
+                        Mat4 worldTransform = model.meshes[i].transform * entry->transform;
+                        vsPerInstance->mvp = GetPerspectiveProjection(entry->camera->fovy, entry->camera->aspect, 0.1f, 100.0f) * GetViewMatrix(entry->camera->position, entry->camera->direction, entry->camera->worldUp) * worldTransform;
+                        vsPerInstance->model = worldTransform;
+                        vsPerInstance->isSkinnedMesh = entry->boneCount > 0;
+                        MemSet(vsPerInstance->bones, 0, sizeof(vsPerInstance->bones));
+                        for (u32 boneIndex = 0; boneIndex < entry->boneCount; ++boneIndex)
+                        {
+                            Mat4 transform = MAT4_IDENTITY;
+                            for (int id = boneIndex; id != INVALID_VALUE; id = entry->bones[id].parentIndex)
+                            {
+                                u32 channelIndex = FindFirstIndex(entry->nodeTransforms, entry->channelCount, id);
+
+                                if (channelIndex >= 0)
+                                {
+                                    transform = entry->nodeTransforms[channelIndex].transform * transform;
+                                    break;
+                                }
+                                else
+                                {
+                                    transform = entry->bones[id].localMatrix * transform;
+                                }
+                            }
+                            vsPerInstance->bones[boneIndex] = entry->globalInverseTransform * transform * entry->bones[boneIndex].offsetMatrix;
+                        }
+                        renderer->deviceContext->Unmap(model.meshes[i].vsPerInstance, 0);
+                    }
+
+                    {
+                        D3D11_MAPPED_SUBRESOURCE subRes;
+                        renderer->deviceContext->Map(model.meshes[i].psPerInstance, 0, D3D11_MAP_WRITE_DISCARD, 0, &subRes);
+
+                        PSPerInstance* psPerInstance = (PSPerInstance*)subRes.pData;
+                        psPerInstance->color = entry->mat.color;
+
+                        renderer->deviceContext->Unmap(model.meshes[i].psPerInstance, 0);
+                    }
+
+                    renderer->deviceContext->VSSetShader(renderer->vsDefaultShader, 0, 0);
+                    renderer->deviceContext->PSSetShader(renderer->psDefaultShader, 0, 0);
+                    renderer->deviceContext->VSSetConstantBuffers(0, 1, &model.meshes[i].vsPerInstance);
+                    renderer->deviceContext->PSSetConstantBuffers(0, 1, &model.meshes[i].psPerInstance);
+                    renderer->deviceContext->IASetVertexBuffers(0, 1, &model.meshes[i].vertexBuffer, model.meshes[i].stride, model.meshes[i].offset);
+                    renderer->deviceContext->IASetIndexBuffer(model.meshes[i].indexBuffer, DXGI_FORMAT_R32_UINT, 0);
+                    renderer->deviceContext->IASetInputLayout(model.meshes[i].inputLayout);
+                    if (entry->mat.textureId)
+                    {
+                        renderer->deviceContext->PSSetShaderResources(0, 1, &renderer->textures[entry->mat.textureId[model.meshes[i].shaderResIndex]].shaderRes);
+                    }
+                    else
+                    {
+                        renderer->deviceContext->PSSetShaderResources(0, 1, &renderer->textures[0].shaderRes);
+                    }
+                    renderer->deviceContext->PSSetSamplers(0, 1, &model.meshes[i].samplerState);
+                    renderer->deviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+                    renderer->deviceContext->OMSetRenderTargets(1, &renderer->renderTargetView, renderer->depthStencilView);
+
+                    renderer->deviceContext->DrawIndexed(model.meshes[i].indexCount, 0, 0);
+
+                }
+                base = (u8*)base + sizeof(*entry);
+            } break;
+
+            case RC_RenderCommandVoxel:
+            {
+                RenderCommandVoxel* entry = (RenderCommandVoxel*)base;
+
+                renderer->deviceContext->VSSetShader(renderer->vsVoxelShader, 0, 0);
+                renderer->deviceContext->PSSetShader(renderer->psVoxelShader, 0, 0);
+                renderer->deviceContext->IASetInputLayout(NULL);
+                renderer->deviceContext->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
+                renderer->deviceContext->OMSetRenderTargets(1, &renderer->renderTargetView, NULL);
+
+                renderer->deviceContext->Draw(4, 0);
+
+                base = (u8*)base + sizeof(*entry);
+            } break;
+
+            default:
+                break;
+        }
+    }
+    renderer->swapChain->Present(0, 0);
+}
+
 
 #endif
