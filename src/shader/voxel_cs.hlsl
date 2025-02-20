@@ -1,5 +1,5 @@
 #include "voxel.hlsl"
 
-void CSMain()
+void main()
 {
 }

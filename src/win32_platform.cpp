@@ -278,7 +278,7 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prevInstance, PSTR cmdLine, int
             Renderer renderer = {};
             renderGroup->renderer = &renderer;
             // D3D11InitScene(gameState->width, gameState->height, renderGroup, &gameMemory.persistantArena, windowHandle);
-            VKInit(renderGroup->renderer, instance, windowHandle, "GOD", &gameMemory.persistantArena);
+            HZVKInit(renderGroup->renderer, instance, windowHandle, "GOD", &gameMemory.persistantArena);
 
             Win32GameCode gameCode = Win32LoadGameCode("game.dll");
 
@@ -304,7 +304,7 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prevInstance, PSTR cmdLine, int
                 ShowCursor(gameState->showCursor);
 
                 // D3D11RenderOutput(renderGroup);
-                VkRenderOutput(renderGroup);
+                HZVKRenderOutput(renderGroup);
 
                 f32 elapsed = (f32)(Win32GetPerfCounter() - lastPerfCounter) / perfFrequency;
 

@@ -19,7 +19,7 @@ cbuffer VSPerInstance : register(b0)
   bool isSkinnedMesh;
 };
 
-VSOut VSMain(VSIn input)
+VSOut main(VSIn input)
 {
     VSOut output = (VSOut)0; // zero the memory first
     output.uv = float2(input.vertexId&1,input.vertexId>>1); //you can use these for texture coordinates later

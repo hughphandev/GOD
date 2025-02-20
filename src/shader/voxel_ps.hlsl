@@ -21,7 +21,7 @@ Texture2D meshTexture;
 SamplerState MeshTextureSampler;
 
 
-PSOut PSMain(VSOut input)
+PSOut main(VSOut input)
 {
     PSOut output = (PSOut)0;
     output.color = float4(1,0,0,1); //the red color
