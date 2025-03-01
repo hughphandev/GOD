@@ -37,6 +37,7 @@ struct VertWeight
     u32 vertIndex;
     f32 weight;
 };
+
 struct LoadedMesh
 {
     Mat4 transform;
@@ -82,6 +83,12 @@ struct alignas(16) VSPerInstance
     bool isSkinnedMesh;
 };
 
+struct VoxelData
+{
+    Color color;
+    Vec3 normal;
+};
+
 struct alignas(16) VSPerFrame
 {
 
@@ -108,7 +115,6 @@ struct alignas(16) PSPerScene
 {
 
 };
-
 
 struct RenderGroup
 {

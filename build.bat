@@ -3,7 +3,7 @@ set CFlags=-DDEBUG -DSLOW=1 -D_CRT_SECURE_NO_WARNINGS -W4 -MT -wd4100 -wd4189 -w
 
 set LDLibs=gdi32.lib msvcrt.lib winmm.lib User32.lib D3D11.lib D3DCompiler.lib dxgi.lib vulkan-1.lib
 
-set LDFlags=-incremental:no /NODEFAULTLIB:libcmt 
+set LDFlags=-incremental:no /NODEFAULTLIB:libcmt
 
 set Optimize=/0i /02 /fp:fast
 
@@ -12,10 +12,15 @@ set ProjectDir=%CD%
 set TestDir=%ProjectDir%\tests
 set BuildDir=%ProjectDir%\build
 set BuildAssetDir=%BuildDir%\asset
+set BuildShaderDir=%BuildDir%\shader
+
+if not exist %BuildAssetDir% mkdir %BuildAssetDir%
+if not exist %BuildShaderDir% mkdir %BuildShaderDir%
 
 set SourceDir=%ProjectDir%\src
 set AssetDir=%ProjectDir%\asset
 set ShaderDir=%SourceDir%\shader
+
 set VendorInclude=/I%SourceDir%\vendor\include /I%VULKAN_SDK%\Include
 set VendorLibs=/LIBPATH:%SourceDir%\vendor\lib /LIBPATH:%VULKAN_SDK%\Lib
 
@@ -33,11 +38,13 @@ REM Clean up
    del %BuildDir%\*.pdb
 
 REM Compile Shader
-	fxc /Od /Zi /T vs_5_0 /E:VSMain /Fo %BuildDir%\default_vs.fxo %ShaderDir%\default_vs.hlsl
-	fxc /Od /Zi /T ps_5_0 /E:PSMain /Fo %BuildDir%\default_ps.fxo %ShaderDir%\default_ps.hlsl
-	fxc /Od /Zi /T vs_5_0 /E:VSMain /Fo %BuildDir%\voxel_vs.fxo %ShaderDir%\voxel_vs.hlsl
-	fxc /Od /Zi /T ps_5_0 /E:PSMain /Fo %BuildDir%\voxel_ps.fxo %ShaderDir%\voxel_ps.hlsl
-	fxc /Od /Zi /T ps_5_0 /E:CSMain /Fo %BuildDir%\voxel_cs.fxo %ShaderDir%\voxel_cs.hlsl
+	@REM fxc /Od /Zi /T vs_5_0 /Fo %BuildDir%\shaders\default_vs.fxo %ShaderDir%\default_vs.hlsl
+	@REM fxc /Od /Zi /T ps_5_0 /Fo %BuildDir%\shaders\default_ps.fxo %ShaderDir%\default_ps.hlsl
+	@REM fxc /Od /Zi /T vs_5_0 /Fo %BuildDir%\shaders\voxel_vs.fxo %ShaderDir%\voxel_vs.hlsl
+	@REM fxc /Od /Zi /T ps_5_0 /Fo %BuildDir%\shaders\voxel_ps.fxo %ShaderDir%\voxel_ps.hlsl
+	@REM fxc /Od /Zi /T ps_5_0 /Fo %BuildDir%\shaders\voxel_cs.fxo %ShaderDir%\voxel_cs.hlsl
+	@REM dxc /Od /Zi /T -spirv /T cs_5_0 /Fo %BuildDir%\shader\compute.spv %ShaderDir%\compute.hlsl
+	glslc %ShaderDir%\compute.comp -o %BuildDir%\shader\compute.spv
 
 REM Asset Packer code
 	cl %CFlags% %VendorInclude% /Fo:%ObjDir% /Fd:%ObjDir% %AssetPackerFile% /link %LDFlags% %LDLibs% assimp-vc143-mt.lib %VendorLibs% /OUT:%BuildDir%\AssetPacker.exe 
@@ -54,6 +61,10 @@ REM Test code
 
 REM Build Assets
 	echo Build Assets
+	for /R %SourceDir%\vendor\lib %%f in (*.dll) do (
+		xcopy /Q %%f %BuildDir%\%%~nf.dll /Y
+	)
+
 
 	for /R %AssetDir% %%f in (*) do (
 		%BuildDir%\AssetPacker.exe %%f %BuildAssetDir%\%%~nf.hza 

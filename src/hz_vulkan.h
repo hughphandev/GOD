@@ -7,9 +7,14 @@
 
 #define VK_USE_PLATFORM_WIN32_KHR
 #include "vulkan/vulkan.h"
+#include <vulkan/vk_enum_string_helper.h>
 
 #ifdef DEBUG
-#define VK_CHECK(expression) ASSERT((expression) == VK_SUCCESS)
+#define VK_CHECK(expression) \
+{\
+    auto returnCode = (expression);\
+    if(returnCode != VK_SUCCESS) LOG_ERROR("Vulkan error: %s", string_VkResult(returnCode));\
+}
 #else
 #define VK_CHECK(expression) expression 
 #endif
@@ -17,17 +22,17 @@
 struct HZVKMemoryArena
 {
     VkDeviceMemory base;
-    u32 used;
-    u32 size;
+    VkDeviceSize used;
+    VkDeviceSize size;
 };
 
 struct HZVKMemoryRef
 {
     VkDeviceMemory base;
-    u32 offset;
+    VkDeviceSize offset;
 };
 
-HZVKMemoryRef HZVKPushSize(HZVKMemoryArena* arena, u32 bytes)
+HZVKMemoryRef HZVKPushSize(HZVKMemoryArena* arena, VkDeviceSize bytes)
 {
     ASSERT((arena->size - arena->used) >= bytes);
     HZVKMemoryRef result = {};
@@ -78,8 +83,7 @@ struct Renderer
     VkSemaphore submitSemaphore;
 };
 
-
-HZVKMemoryArena HZVKInitMemoryArena(VkDevice device, VkPhysicalDevice gpu, u32 size, VkMemoryRequirements memRequirements, VkMemoryPropertyFlags flags)
+VkDeviceMemory HZVKAllocateMemory(VkDevice device, VkPhysicalDevice gpu, VkMemoryRequirements memRequirements, VkMemoryPropertyFlags flags)
 {
     VkPhysicalDeviceMemoryProperties memProp;
     vkGetPhysicalDeviceMemoryProperties(gpu, &memProp);
@@ -93,14 +97,21 @@ HZVKMemoryArena HZVKInitMemoryArena(VkDevice device, VkPhysicalDevice gpu, u32 s
         }
     }
 
-    HZVKMemoryArena result;
     VkMemoryAllocateInfo allocInfo = {};
     allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-    allocInfo.allocationSize = size;
+    allocInfo.allocationSize = memRequirements.size;
     allocInfo.memoryTypeIndex = vRamType;
-    VK_CHECK(vkAllocateMemory(device, &allocInfo, 0, &result.base));
+    VkDeviceMemory result;
+    VK_CHECK(vkAllocateMemory(device, &allocInfo, 0, &result));
+    return result;
+}
+
+HZVKMemoryArena HZVKInitMemoryArena(VkDevice device, VkPhysicalDevice gpu, VkMemoryRequirements memRequirements, VkMemoryPropertyFlags flags)
+{
+    HZVKMemoryArena result;
     result.used = 0;
-    result.size = size;
+    result.size = memRequirements.size;
+    result.base = HZVKAllocateMemory(device, gpu, memRequirements, flags);
     return result;
 }
 
@@ -228,16 +239,39 @@ void HZVKTransitionImage(VkCommandBuffer cmd, VkImage image, VkImageLayout curre
     vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, 0, NULL, 0, NULL, 1, &imageBarrier);
 }
 
-VkDescriptorSetLayoutBinding HZVKDescriptorSetLayoutBinding(u32 binding, VkDescriptorType type, VkShaderStageFlags stageFlags)
+VkDescriptorSetLayoutBinding HZVKDescriptorSetLayoutBinding(u32 binding, VkDescriptorType type, u32 count, VkShaderStageFlags stageFlags)
 {
     VkDescriptorSetLayoutBinding result = {};
 
     result.binding = binding;
-    result.descriptorCount = 1;
+    result.descriptorCount = count;
     result.descriptorType = type;
     result.stageFlags = stageFlags;
 
     return result;
+}
+
+VkDescriptorPoolSize HZVKDescriptorPoolSize(VkDescriptorType type, u32 count)
+{
+    VkDescriptorPoolSize result = {};
+    result.type = type;
+    result.descriptorCount = count;
+    return result;
+}
+
+VkDescriptorSetLayout HZVKDescriptorSetLayout(VkDevice device, VkDescriptorSetLayoutBinding* bindings, u32 count)
+{
+    VkDescriptorSetLayoutCreateInfo descriptorLayoutInfo = {};
+    descriptorLayoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    descriptorLayoutInfo.pNext = nullptr;
+
+    descriptorLayoutInfo.pBindings = bindings;
+    descriptorLayoutInfo.bindingCount = count;
+    // info.flags = flags;
+
+    VkDescriptorSetLayout descriptorLayout;
+    VK_CHECK(vkCreateDescriptorSetLayout(device, &descriptorLayoutInfo, nullptr, &descriptorLayout));
+    return descriptorLayout;
 }
 
 void HZVKInit(Renderer* renderer, HINSTANCE hinstance, HWND hwnd, const char* name, MemoryArena* arena)
@@ -338,7 +372,7 @@ void HZVKInit(Renderer* renderer, HINSTANCE hinstance, HWND hwnd, const char* na
         return;
     }
 
-    VkPhysicalDevice* gpu = &renderer->gpus[renderer->gpuIndex];
+    VkPhysicalDevice gpu = renderer->gpus[renderer->gpuIndex];
 
     f32 queuePiority = 1;
     VkDeviceQueueCreateInfo queueInfo = {};
@@ -360,18 +394,18 @@ void HZVKInit(Renderer* renderer, HINSTANCE hinstance, HWND hwnd, const char* na
     deviceInfo.ppEnabledExtensionNames = swapchainExts;
     deviceInfo.enabledLayerCount = ARRAY_COUNT(layers);
     deviceInfo.ppEnabledLayerNames = layers;
-    VK_CHECK(vkCreateDevice(*gpu, &deviceInfo, NULL, &renderer->device));
+    VK_CHECK(vkCreateDevice(gpu, &deviceInfo, NULL, &renderer->device));
 
     vkGetDeviceQueue(renderer->device, renderer->graphicAndComputeIndex, 0, &renderer->graphicAndComputeQueue);
 
     VkSurfaceCapabilitiesKHR surfaceCap;
-    VK_CHECK(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(*gpu, surface, &surfaceCap));
+    VK_CHECK(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(gpu, surface, &surfaceCap));
     renderer->screenSize = surfaceCap.currentExtent;
 
     u32 surfaceFormatCount;
-    VK_CHECK(vkGetPhysicalDeviceSurfaceFormatsKHR(*gpu, surface, &surfaceFormatCount, NULL));
+    VK_CHECK(vkGetPhysicalDeviceSurfaceFormatsKHR(gpu, surface, &surfaceFormatCount, NULL));
     VkSurfaceFormatKHR* surfaceFormats = PUSH_ARRAY(arena, VkSurfaceFormatKHR, surfaceFormatCount);
-    VK_CHECK(vkGetPhysicalDeviceSurfaceFormatsKHR(*gpu, surface, &surfaceFormatCount, surfaceFormats));
+    VK_CHECK(vkGetPhysicalDeviceSurfaceFormatsKHR(gpu, surface, &surfaceFormatCount, surfaceFormats));
     for (u32 i = 0; i < surfaceFormatCount; ++i)
     {
         if (surfaceFormats[i].format == VK_FORMAT_B8G8R8A8_SRGB)
@@ -418,49 +452,61 @@ void HZVKInit(Renderer* renderer, HINSTANCE hinstance, HWND hwnd, const char* na
 
     VkMemoryRequirements memRequirements;
     vkGetImageMemoryRequirements(renderer->device, renderer->drawImg.img, &memRequirements);
-    renderer->vRamArena = HZVKInitMemoryArena(renderer->device, *gpu, MEGABYTES(256), memRequirements, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+    auto ouputMem = HZVKAllocateMemory(renderer->device, gpu, memRequirements, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
-    auto drawImgMem = HZVKPushSize(&renderer->vRamArena, drawImgInfo.extent.width * drawImgInfo.extent.height * drawImgInfo.extent.depth * 4);
-    VK_CHECK(vkBindImageMemory(renderer->device, renderer->drawImg.img, drawImgMem.base, drawImgMem.offset));
+    VK_CHECK(vkBindImageMemory(renderer->device, renderer->drawImg.img, ouputMem, 0));
     renderer->drawImg.extent = drawImgInfo.extent;
 
     auto drawImgViewInfo = HZVKCreateImageViewInfo(drawImgInfo.format, renderer->drawImg.img, VK_IMAGE_ASPECT_COLOR_BIT);
     VK_CHECK(vkCreateImageView(renderer->device, &drawImgViewInfo, NULL, &renderer->drawImg.view));
 
-    VkDescriptorSetLayoutBinding compShaderBindings[] =
+    VkBufferCreateInfo bufferInfo = {};
+    bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    // bufferInfo.flags = VK_BUFFER_CREATE_SPARSE_BINDING_BIT;
+    bufferInfo.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
+    bufferInfo.size = MEGABYTES(1);
+    bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    VkBuffer vRamBuffer;
+    VK_CHECK(vkCreateBuffer(renderer->device, &bufferInfo, NULL, &vRamBuffer));
+
+    VkMemoryRequirements vRamReq;
+    vkGetBufferMemoryRequirements(renderer->device, vRamBuffer, &vRamReq);
+    renderer->vRamArena = HZVKInitMemoryArena(renderer->device, gpu, vRamReq, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+
+    VkDescriptorSetLayoutBinding compShaderTextureBindings[] =
     {
-        HZVKDescriptorSetLayoutBinding(0, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT),
+        HZVKDescriptorSetLayoutBinding(0, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT),
     };
 
-    VkDescriptorSetLayoutCreateInfo descriptorLayoutInfo = {};
-    descriptorLayoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-    descriptorLayoutInfo.pNext = nullptr;
+    VkDescriptorSetLayoutBinding compShaderUniformBindings[] =
+    {
+        HZVKDescriptorSetLayoutBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT),
+    };
 
-    descriptorLayoutInfo.pBindings = compShaderBindings;
-    descriptorLayoutInfo.bindingCount = ARRAY_COUNT(compShaderBindings);
-    // info.flags = flags;
+    VkDescriptorSetLayout setLayouts[] =
+    {
+        HZVKDescriptorSetLayout(renderer->device, compShaderTextureBindings, ARRAY_COUNT(compShaderTextureBindings)),
+        HZVKDescriptorSetLayout(renderer->device, compShaderUniformBindings, ARRAY_COUNT(compShaderUniformBindings)),
+    };
 
-    VkDescriptorSetLayout descriptorLayout;
-    VK_CHECK(vkCreateDescriptorSetLayout(renderer->device, &descriptorLayoutInfo, nullptr, &descriptorLayout));
-
-    VkDescriptorPoolSize poolSize = {};
-    poolSize.type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
-    poolSize.descriptorCount = 1;
-
+    VkDescriptorPoolSize poolSizes[] = {
+        HZVKDescriptorPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1),
+        HZVKDescriptorPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1),
+    };
     VkDescriptorPoolCreateInfo descPoolInfo = {};
     descPoolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
     descPoolInfo.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
-    descPoolInfo.maxSets = 1;
-    descPoolInfo.poolSizeCount = 1;
-    descPoolInfo.pPoolSizes = &poolSize;
+    descPoolInfo.maxSets = 2;
+    descPoolInfo.poolSizeCount = ARRAY_COUNT(poolSizes);
+    descPoolInfo.pPoolSizes = poolSizes;
     VkDescriptorPool descPool;
     vkCreateDescriptorPool(renderer->device, &descPoolInfo, NULL, &descPool);
 
     VkDescriptorSetAllocateInfo setLayoutInfo = {};
     setLayoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
     setLayoutInfo.descriptorPool = descPool;
-    setLayoutInfo.descriptorSetCount = 1;
-    setLayoutInfo.pSetLayouts = &descriptorLayout;
+    setLayoutInfo.descriptorSetCount = ARRAY_COUNT(setLayouts);
+    setLayoutInfo.pSetLayouts = setLayouts;
     VK_CHECK(vkAllocateDescriptorSets(renderer->device, &setLayoutInfo, &renderer->compDescriptor));
 
     VkDescriptorImageInfo imgInfo = {};
@@ -481,7 +527,7 @@ void HZVKInit(Renderer* renderer, HINSTANCE hinstance, HWND hwnd, const char* na
 
     auto computeShaderCode = ReadFile("shader/compute.spv", arena);
 
-    VkShaderModuleCreateInfo shaderModInfo;
+    VkShaderModuleCreateInfo shaderModInfo = {};
     shaderModInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
     shaderModInfo.codeSize = computeShaderCode.contentSize;
     shaderModInfo.pCode = (u32*)computeShaderCode.content;
@@ -500,8 +546,8 @@ void HZVKInit(Renderer* renderer, HINSTANCE hinstance, HWND hwnd, const char* na
     pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
     // pipelineLayoutInfo.pNext;
     // pipelineLayoutInfo.flags;
-    pipelineLayoutInfo.setLayoutCount = 1;
-    pipelineLayoutInfo.pSetLayouts = &descriptorLayout;
+    pipelineLayoutInfo.setLayoutCount = ARRAY_COUNT(setLayouts);
+    pipelineLayoutInfo.pSetLayouts = setLayouts;
     pipelineLayoutInfo.pushConstantRangeCount = 0;
     pipelineLayoutInfo.pPushConstantRanges = NULL;
     VK_CHECK(vkCreatePipelineLayout(renderer->device, &pipelineLayoutInfo, NULL, &renderer->compPipelineLayout));
@@ -588,6 +634,7 @@ void HZVKInit(Renderer* renderer, HINSTANCE hinstance, HWND hwnd, const char* na
     semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
     vkCreateSemaphore(renderer->device, &semaphoreInfo, NULL, &renderer->acquireSemaphore);
     vkCreateSemaphore(renderer->device, &semaphoreInfo, NULL, &renderer->submitSemaphore);
+
 }
 
 void HZVKRenderOutput(RenderGroup* renderGroup)
