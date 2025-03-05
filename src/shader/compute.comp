@@ -6,23 +6,40 @@ layout (local_size_x = 16, local_size_y = 16) in;
 
 //descriptor bindings for the pipeline
 layout(rgba16f,set = 0, binding = 0) uniform image2D image;
+layout(set = 0, binding = 1) readonly buffer CSPerFrame
+{
+    vec4 voxelColor;
+    vec3 voxelNormal; float _rs;
+    mat4 worldTransform;
+
+    // //TODO: move to perframe
+    vec3 camPos; float _rs1;
+    mat4 invView;
+    float fovy;
+    float aspect;
+} csPerFrame;
 
 
 void main() 
 {
     ivec2 texelCoord = ivec2(gl_GlobalInvocationID.xy);
 	ivec2 size = imageSize(image);
+    ivec2 extents = size / 2;
+
+    float fovy = csPerFrame.fovy;
 
     if(texelCoord.x < size.x && texelCoord.y < size.y)
     {
-        vec4 color = vec4(0.0, 0.0, 0.0, 1.0);
+        vec4 color = csPerFrame.voxelColor;
 
-        if(gl_LocalInvocationID.x != 0 && gl_LocalInvocationID.y != 0)
-        {
-            color.x = float(texelCoord.x)/(size.x);
-            color.y = float(texelCoord.y)/(size.y);	
-        }
-    
-        imageStore(image, texelCoord, color);
+        float pX = (2*(float(texelCoord.x) / size.x) - 1) * csPerFrame.aspect * tan(fovy / 2);
+        float pY = (1 - 2*(float(texelCoord.y) / size.y)) * tan(fovy / 2);
+
+        vec3 rayOrigin = vec3(vec4(0, 0, 0, 1) * csPerFrame.invView);
+        vec3 rayTarget = vec3(vec4(pX, pY, 1, 1) * csPerFrame.invView);
+        vec3 rayDirection = normalize(rayTarget - rayOrigin);
+        vec3 camPos = csPerFrame.camPos;
+
+        imageStore(image, texelCoord, vec4(rayDirection, 1));
     }
 }

@@ -374,6 +374,9 @@ void HZVKInit(Renderer* renderer, HINSTANCE hinstance, HWND hwnd, const char* na
 
     VkPhysicalDevice gpu = renderer->gpus[renderer->gpuIndex];
 
+    VkPhysicalDeviceProperties deviceProp;
+    vkGetPhysicalDeviceProperties(gpu, &deviceProp);
+
     f32 queuePiority = 1;
     VkDeviceQueueCreateInfo queueInfo = {};
     queueInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
@@ -463,8 +466,8 @@ void HZVKInit(Renderer* renderer, HINSTANCE hinstance, HWND hwnd, const char* na
     VkBufferCreateInfo bufferInfo = {};
     bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
     // bufferInfo.flags = VK_BUFFER_CREATE_SPARSE_BINDING_BIT;
-    bufferInfo.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
-    bufferInfo.size = MEGABYTES(1);
+    bufferInfo.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
+    bufferInfo.size = MEGABYTES(1); //deviceProp.limits.maxUniformBufferRange;
     bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
     VkBuffer vRamBuffer;
     VK_CHECK(vkCreateBuffer(renderer->device, &bufferInfo, NULL, &vRamBuffer));
@@ -472,31 +475,27 @@ void HZVKInit(Renderer* renderer, HINSTANCE hinstance, HWND hwnd, const char* na
     VkMemoryRequirements vRamReq;
     vkGetBufferMemoryRequirements(renderer->device, vRamBuffer, &vRamReq);
     renderer->vRamArena = HZVKInitMemoryArena(renderer->device, gpu, vRamReq, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+    VK_CHECK(vkBindBufferMemory(renderer->device, vRamBuffer, renderer->vRamArena.base, 0));
 
-    VkDescriptorSetLayoutBinding compShaderTextureBindings[] =
+    VkDescriptorSetLayoutBinding compShaderBindings[] =
     {
         HZVKDescriptorSetLayoutBinding(0, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT),
-    };
-
-    VkDescriptorSetLayoutBinding compShaderUniformBindings[] =
-    {
-        HZVKDescriptorSetLayoutBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT),
+        HZVKDescriptorSetLayoutBinding(1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT),
     };
 
     VkDescriptorSetLayout setLayouts[] =
     {
-        HZVKDescriptorSetLayout(renderer->device, compShaderTextureBindings, ARRAY_COUNT(compShaderTextureBindings)),
-        HZVKDescriptorSetLayout(renderer->device, compShaderUniformBindings, ARRAY_COUNT(compShaderUniformBindings)),
+        HZVKDescriptorSetLayout(renderer->device, compShaderBindings, ARRAY_COUNT(compShaderBindings)),
     };
 
     VkDescriptorPoolSize poolSizes[] = {
         HZVKDescriptorPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1),
-        HZVKDescriptorPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1),
+        HZVKDescriptorPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1),
     };
     VkDescriptorPoolCreateInfo descPoolInfo = {};
     descPoolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
     descPoolInfo.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
-    descPoolInfo.maxSets = 2;
+    descPoolInfo.maxSets = 10;
     descPoolInfo.poolSizeCount = ARRAY_COUNT(poolSizes);
     descPoolInfo.pPoolSizes = poolSizes;
     VkDescriptorPool descPool;
@@ -516,14 +515,29 @@ void HZVKInit(Renderer* renderer, HINSTANCE hinstance, HWND hwnd, const char* na
     VkWriteDescriptorSet drawImageWrite = {};
     drawImageWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
     drawImageWrite.pNext = nullptr;
-
     drawImageWrite.dstBinding = 0;
     drawImageWrite.dstSet = renderer->compDescriptor;
     drawImageWrite.descriptorCount = 1;
     drawImageWrite.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
     drawImageWrite.pImageInfo = &imgInfo;
 
+
+    VkDescriptorBufferInfo vRamBufferInfo = {};
+    vRamBufferInfo.buffer = vRamBuffer;
+    vRamBufferInfo.offset = 0;
+    vRamBufferInfo.range = renderer->vRamArena.size;
+
+    VkWriteDescriptorSet vRamBufferWrite = {};
+    vRamBufferWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    vRamBufferWrite.pNext = nullptr;
+    vRamBufferWrite.dstBinding = 1;
+    vRamBufferWrite.dstSet = renderer->compDescriptor;
+    vRamBufferWrite.descriptorCount = 1;
+    vRamBufferWrite.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    vRamBufferWrite.pBufferInfo = &vRamBufferInfo;
+
     vkUpdateDescriptorSets(renderer->device, 1, &drawImageWrite, 0, nullptr);
+    vkUpdateDescriptorSets(renderer->device, 1, &vRamBufferWrite, 0, nullptr);
 
     auto computeShaderCode = ReadFile("shader/compute.spv", arena);
 
@@ -675,28 +689,72 @@ void HZVKRenderOutput(RenderGroup* renderGroup)
     {
         HZVKTransitionImage(cmd, renderer->drawImg.img, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
 
-        VkClearColorValue clearValue = { { 1.0f, 0.0f, 0.0f, 1.0f } };
-
-        VkImageSubresourceRange clearRange = {};
-        clearRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-        // clearRange.baseMipLevel;
-        clearRange.levelCount = 1;
-        // clearRange.baseArrayLayer;
-        clearRange.layerCount = 1;
-        vkCmdClearColorImage(cmd, renderer->drawImg.img, VK_IMAGE_LAYOUT_GENERAL, &clearValue, 1, &clearRange);
-
         //clear image
         vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, renderer->compPipeline);
+
+        CSPerFrame* data;
+        vkMapMemory(renderer->device, renderer->vRamArena.base, 0, sizeof(renderer->vRamArena.size), NULL, (void**)&data);
+
+        for (void* base = renderGroup->pushBuffer.base; base < (u8*)renderGroup->pushBuffer.base + renderGroup->pushBuffer.used;)
+        {
+            RenderCommandHeader* header = (RenderCommandHeader*)base;
+            base = (u8*)base + sizeof(*header);
+            switch (header->type)
+            {
+                case RC_RenderCommandClear:
+                {
+                    RenderCommandClear* entry = (RenderCommandClear*)base;
+
+                    VkClearColorValue clearValue = { entry->color.r, entry->color.g, entry->color.b, entry->color.a };
+
+                    VkImageSubresourceRange clearRange = {};
+                    clearRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+                    // clearRange.baseMipLevel;
+                    clearRange.levelCount = 1;
+                    // clearRange.baseArrayLayer;
+                    clearRange.layerCount = 1;
+                    vkCmdClearColorImage(cmd, renderer->drawImg.img, VK_IMAGE_LAYOUT_GENERAL, &clearValue, 1, &clearRange);
+
+                    base = (u8*)base + sizeof(*entry);
+                } break;
+
+                case RC_RenderCommandModel:
+                {
+                    RenderCommandModel* entry = (RenderCommandModel*)base;
+
+                    base = (u8*)base + sizeof(*entry);
+                } break;
+
+                case RC_RenderCommandVoxel:
+                {
+                    RenderCommandVoxel* entry = (RenderCommandVoxel*)base;
+
+                    data->voxelColor = entry->voxel.color;
+                    data->voxelNormal = entry->voxel.normal;
+                    data->worldTrans = entry->transform;
+
+                    data->fovy = entry->camera->fovy;
+                    data->aspect = entry->camera->aspect;
+                    data->invView = Inverse(GetViewMatrix(entry->camera->position, entry->camera->direction, entry->camera->worldUp)).inv;
+                    data->camPos = entry->camera->position;
+
+                    base = (u8*)base + sizeof(*entry);
+                } break;
+
+                default:
+                    break;
+            }
+        }
+
+        vkUnmapMemory(renderer->device, renderer->vRamArena.base);
 
         // bind the descriptor set containing the draw image for the compute pipeline
         vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, renderer->compPipelineLayout, 0, 1, &renderer->compDescriptor, 0, nullptr);
 
         // execute the compute pipeline dispatch. We are using 16x16 workgroup size so we need to divide by it
         vkCmdDispatch(cmd, (u32)Ceil((f32)renderer->drawImg.extent.width / 16.0f), (u32)Ceil((f32)renderer->drawImg.extent.height / 16.0f), 1);
-
         HZVKTransitionImage(cmd, renderer->drawImg.img, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
         HZVKTransitionImage(cmd, renderer->scImgs[imgIndex], VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-
         VkImageBlit blitInfo = {};
 
         VkImageSubresourceLayers subRes = {};
@@ -757,5 +815,4 @@ void HZVKRenderOutput(RenderGroup* renderGroup)
 
     vkFreeCommandBuffers(renderer->device, renderer->cmdPool, 1, &cmd);
 }
-
 #endif

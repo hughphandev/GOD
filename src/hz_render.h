@@ -23,7 +23,7 @@ struct Camera
     Vec3 direction;
     Vec3 worldUp;
     float fovy;
-    float aspect;
+    f32 aspect;
 };
 
 struct Texture
@@ -74,6 +74,49 @@ struct Transform
     Vec3 scale;
 };
 
+struct VoxelData
+{
+    Color color;
+    Vec3 normal;
+};
+
+struct VoxelNode
+{
+    u64 mask;
+    VoxelNode* childs[4][4][4];
+    VoxelData data;
+};
+
+struct SparseVoxelTree
+{
+    VoxelNode* root;
+    u32 resolution;
+};
+
+
+struct alignas(16) CSPerInstance
+{
+};
+
+struct alignas(16) CSPerFrame
+{
+    Color voxelColor;
+    Vec3 voxelNormal; f32 _rs;
+    Mat4 worldTrans;
+
+    // //TODO: move to perframe
+    Vec3 camPos; f32 _rs1;
+    Mat4 invView;
+    f32 fovy;
+    f32 aspect;
+};
+
+
+struct alignas(16) CSPerScene
+{
+
+};
+
 #define MAX_BONES 100
 struct alignas(16) VSPerInstance
 {
@@ -83,11 +126,6 @@ struct alignas(16) VSPerInstance
     bool isSkinnedMesh;
 };
 
-struct VoxelData
-{
-    Color color;
-    Vec3 normal;
-};
 
 struct alignas(16) VSPerFrame
 {
@@ -158,6 +196,10 @@ struct RenderCommandModel
 
 struct RenderCommandVoxel
 {
+    Mat4 transform;
+    // SparseVoxelTree voxTree;
+    VoxelData voxel;
+    Camera* camera;
 };
 
 // Implementation
@@ -199,9 +241,12 @@ void PushRenderModel(RenderGroup* renderGroup, Camera* camera, u32 modelId, Mate
     command->channelCount = tranCount;
 }
 
-void PushRenderVoxel(RenderGroup* renderGroup)
+void PushRenderVoxel(RenderGroup* renderGroup, VoxelData voxel, Mat4 trans, Camera* cam)
 {
     RenderCommandVoxel* command = PUSH_RENDER_ELEMENT(renderGroup, RenderCommandVoxel);
+    command->voxel = voxel;
+    command->transform = trans;
+    command->camera = cam;
 }
 
 typedef void UpdateMesh(Renderer* renderContext, u32 modelId, u32 meshId, LoadedMesh mesh);

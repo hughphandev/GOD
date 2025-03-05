@@ -44,7 +44,7 @@ REM Compile Shader
 	@REM fxc /Od /Zi /T ps_5_0 /Fo %BuildDir%\shaders\voxel_ps.fxo %ShaderDir%\voxel_ps.hlsl
 	@REM fxc /Od /Zi /T ps_5_0 /Fo %BuildDir%\shaders\voxel_cs.fxo %ShaderDir%\voxel_cs.hlsl
 	@REM dxc /Od /Zi /T -spirv /T cs_5_0 /Fo %BuildDir%\shader\compute.spv %ShaderDir%\compute.hlsl
-	glslc %ShaderDir%\compute.comp -o %BuildDir%\shader\compute.spv
+	glslc -g %ShaderDir%\compute.comp -o %BuildDir%\shader\compute.spv
 
 REM Asset Packer code
 	cl %CFlags% %VendorInclude% /Fo:%ObjDir% /Fd:%ObjDir% %AssetPackerFile% /link %LDFlags% %LDLibs% assimp-vc143-mt.lib %VendorLibs% /OUT:%BuildDir%\AssetPacker.exe 
