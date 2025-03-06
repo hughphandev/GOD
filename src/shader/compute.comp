@@ -1,6 +1,8 @@
 //GLSL version to use
 #version 460
 
+#include "utils.glsl"
+
 //size of a workgroup for compute
 layout (local_size_x = 16, local_size_y = 16) in;
 
@@ -10,10 +12,11 @@ layout(set = 0, binding = 1) readonly buffer CSPerFrame
 {
     vec4 voxelColor;
     vec3 voxelNormal; float _rs;
+    vec3 voxelPos; float _rs1;
     mat4 worldTransform;
 
     // //TODO: move to perframe
-    vec3 camPos; float _rs1;
+    vec3 camPos; float _rs2;
     mat4 invView;
     float fovy;
     float aspect;
@@ -40,6 +43,8 @@ void main()
         vec3 rayDirection = normalize(rayTarget - rayOrigin);
         vec3 camPos = csPerFrame.camPos;
 
-        imageStore(image, texelCoord, vec4(rayDirection, 1));
+        vec2 t = IntersectAABB(rayOrigin, rayDirection, csPerFrame.voxelPos - vec3(0.5), csPerFrame.voxelPos + vec3(0.5));
+
+        if(t.x < t.y) imageStore(image, texelCoord, csPerFrame.voxelColor);
     }
 }

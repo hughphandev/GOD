@@ -732,10 +732,11 @@ void HZVKRenderOutput(RenderGroup* renderGroup)
                     data->voxelColor = entry->voxel.color;
                     data->voxelNormal = entry->voxel.normal;
                     data->worldTrans = entry->transform;
+                    data->voxelPos = Vec3{ 0, 0, 1 };
 
                     data->fovy = entry->camera->fovy;
                     data->aspect = entry->camera->aspect;
-                    data->invView = Inverse(GetViewMatrix(entry->camera->position, entry->camera->direction, entry->camera->worldUp)).inv;
+                    data->invView = GetWorldMatrix(entry->camera->position, entry->camera->direction, entry->camera->worldUp);
                     data->camPos = entry->camera->position;
 
                     base = (u8*)base + sizeof(*entry);

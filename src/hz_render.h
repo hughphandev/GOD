@@ -102,10 +102,11 @@ struct alignas(16) CSPerFrame
 {
     Color voxelColor;
     Vec3 voxelNormal; f32 _rs;
+    Vec3 voxelPos; f32 _rs1;
     Mat4 worldTrans;
 
     // //TODO: move to perframe
-    Vec3 camPos; f32 _rs1;
+    Vec3 camPos; f32 _rs2;
     Mat4 invView;
     f32 fovy;
     f32 aspect;

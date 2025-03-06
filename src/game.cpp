@@ -37,7 +37,7 @@ HPI void Init(GameState* state, RenderGroup* renderGroup, GameMemory* gameMemory
         state->camera[i].worldUp = { 0, 1, 0 };
         state->camera[i].fovy = 60.0f * DEG2RAD;
         state->camera[i].aspect = (f32)state->width / state->height;
-        state->camera[i].position = { 0, 0, 1 };
+        state->camera[i].position = { 0, 0, 0 };
         state->camera[i].direction = { 0, 0, 1 };
     }
 
@@ -183,7 +183,7 @@ HPI void Update(GameState* state, RenderGroup* renderGroup, GameMemory* gameMemo
     PushRenderClear(renderGroup, { 0.5f, 0.5f, 0.5f, 1.0f });
 
     VoxelData voxel = {};
-    voxel.color = { 1, 1, 0, 1 };
+    voxel.color = { 1, 1, 1, 1 };
     PushRenderVoxel(renderGroup, voxel, MAT4_IDENTITY, &state->camera[(u32)state->gameMode]);
 
     // Material mat = {};

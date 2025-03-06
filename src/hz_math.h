@@ -1114,6 +1114,23 @@ Mat4 GetViewMatrix(Vec3 position, Vec3 direction, Vec3 worldUp) {
   return result;
 }
 
+Mat4 GetWorldMatrix(Vec3 position, Vec3 direction, Vec3 worldUp) {
+  Vec3 right = Normalize(Cross(worldUp, direction));
+  Vec3 up = Cross(direction, right);
+
+  Mat4 result =
+  {
+    {
+      { right.x, up.x, direction.x, position.x },
+      { right.y, up.y, direction.y, position.y },
+      { right.z, up.z, direction.z, position.z },
+      { 0, 0, 0, 1 }
+    }
+  };
+
+  return result;
+}
+
 Mat4 GetPerspectiveProjection(f32 fov, f32 aspect, f32 nPlane, f32 fPlane) {
   f32 f = 1.0f / Tan(fov / 2.0f);
   f32 delta = nPlane - fPlane;
