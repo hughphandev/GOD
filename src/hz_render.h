@@ -80,11 +80,26 @@ struct VoxelData
     Vec3 normal;
 };
 
+enum class VoxelDataType
+{
+    Color,
+    BrickCoord,
+};
+
 struct VoxelNode
 {
-    u64 mask;
-    VoxelNode* childs[4][4][4];
-    VoxelData data;
+    u32 subdivision : 1;
+    VoxelDataType dataType : 1;
+    u32 child : 30;
+    union
+    {
+        u32 color;
+        struct
+        {
+            u32 _rs : 2;
+            u32 x : 10, y : 10, z : 10;
+        };
+    };
 };
 
 struct SparseVoxelTree
@@ -98,24 +113,20 @@ struct alignas(16) CSPerInstance
 {
 };
 
+
 struct alignas(16) CSPerFrame
 {
-    Color voxelColor;
-    Vec3 voxelNormal; f32 _rs;
-    Vec3 voxelPos; f32 _rs1;
-    Mat4 worldTrans;
-
-    // //TODO: move to perframe
     Vec3 camPos; f32 _rs2;
     Mat4 invView;
     f32 fovy;
     f32 aspect;
 };
 
-
+#define MAX_GRID_SIZE 20
 struct alignas(16) CSPerScene
 {
-
+    Mat4 worldTrans;
+    VoxelNode voxel[MAX_GRID_SIZE * MAX_GRID_SIZE * MAX_GRID_SIZE];
 };
 
 #define MAX_BONES 100

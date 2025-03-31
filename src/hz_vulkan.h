@@ -433,7 +433,7 @@ void HZVKInit(Renderer* renderer, HINSTANCE hinstance, HWND hwnd, const char* na
     // swapchainInfo.pQueueFamilyIndices;
     swapchainInfo.preTransform = surfaceCap.currentTransform;
     swapchainInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
-    // swapchainInfo.presentMode;
+    // swapchainInfo.presentMode =  VK_PRESENT_MODE_IMMEDIATE_KHR;
     // swapchainInfo.clipped;
     // swapchainInfo.oldSwapchain;
     VK_CHECK(vkCreateSwapchainKHR(renderer->device, &swapchainInfo, NULL, &renderer->sc));
@@ -467,7 +467,7 @@ void HZVKInit(Renderer* renderer, HINSTANCE hinstance, HWND hwnd, const char* na
     bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
     // bufferInfo.flags = VK_BUFFER_CREATE_SPARSE_BINDING_BIT;
     bufferInfo.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
-    bufferInfo.size = MEGABYTES(1); //deviceProp.limits.maxUniformBufferRange;
+    bufferInfo.size = MEGABYTES(256);
     bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
     VkBuffer vRamBuffer;
     VK_CHECK(vkCreateBuffer(renderer->device, &bufferInfo, NULL, &vRamBuffer));
@@ -556,14 +556,19 @@ void HZVKInit(Renderer* renderer, HINSTANCE hinstance, HWND hwnd, const char* na
     compShaderInfo.pName = "main";
     compShaderInfo.pSpecializationInfo = NULL;
 
+    VkPushConstantRange pushConstant;
+    pushConstant.offset = 0;
+    pushConstant.size = sizeof(CSPerFrame);
+    pushConstant.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+
     VkPipelineLayoutCreateInfo pipelineLayoutInfo = {};
     pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
     // pipelineLayoutInfo.pNext;
     // pipelineLayoutInfo.flags;
     pipelineLayoutInfo.setLayoutCount = ARRAY_COUNT(setLayouts);
     pipelineLayoutInfo.pSetLayouts = setLayouts;
-    pipelineLayoutInfo.pushConstantRangeCount = 0;
-    pipelineLayoutInfo.pPushConstantRanges = NULL;
+    pipelineLayoutInfo.pushConstantRangeCount = 1;
+    pipelineLayoutInfo.pPushConstantRanges = &pushConstant;
     VK_CHECK(vkCreatePipelineLayout(renderer->device, &pipelineLayoutInfo, NULL, &renderer->compPipelineLayout));
 
     VkComputePipelineCreateInfo compInfo = {};
@@ -692,8 +697,6 @@ void HZVKRenderOutput(RenderGroup* renderGroup)
         //clear image
         vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, renderer->compPipeline);
 
-        CSPerFrame* data;
-        vkMapMemory(renderer->device, renderer->vRamArena.base, 0, sizeof(renderer->vRamArena.size), NULL, (void**)&data);
 
         for (void* base = renderGroup->pushBuffer.base; base < (u8*)renderGroup->pushBuffer.base + renderGroup->pushBuffer.used;)
         {
@@ -728,16 +731,32 @@ void HZVKRenderOutput(RenderGroup* renderGroup)
                 case RC_RenderCommandVoxel:
                 {
                     RenderCommandVoxel* entry = (RenderCommandVoxel*)base;
+                    static bool isInit = false;
+                    if (!isInit)
+                    {
+                        isInit = true;
+                        CSPerScene* data;
+                        vkMapMemory(renderer->device, renderer->vRamArena.base, 0, sizeof(renderer->vRamArena.size), NULL, (void**)&data);
 
-                    data->voxelColor = entry->voxel.color;
-                    data->voxelNormal = entry->voxel.normal;
-                    data->worldTrans = entry->transform;
-                    data->voxelPos = Vec3{ 0, 0, 1 };
+                        data->worldTrans = entry->transform;
 
-                    data->fovy = entry->camera->fovy;
-                    data->aspect = entry->camera->aspect;
-                    data->invView = GetWorldMatrix(entry->camera->position, entry->camera->direction, entry->camera->worldUp);
-                    data->camPos = entry->camera->position;
+                        RandomSeed(0);
+                        for (int i = 0; i < ARRAY_COUNT(data->voxel); ++i)
+                        {
+                            data->voxel[i].subdivision = 0;
+                            data->voxel[i].dataType = VoxelDataType::Color;
+                            data->voxel[i].child = Random() < RAND_MAX / 10 ? 1 : 0;
+                            data->voxel[i].color = ToU32Color(Vec4{ Random01(), Random01(), Random01(), 1 });
+                        }
+                        vkUnmapMemory(renderer->device, renderer->vRamArena.base);
+                    }
+
+                    CSPerFrame data;
+                    data.fovy = entry->camera->fovy;
+                    data.aspect = entry->camera->aspect;
+                    data.invView = GetWorldMatrix(entry->camera->position, entry->camera->direction, entry->camera->worldUp);
+                    data.camPos = entry->camera->position;
+                    vkCmdPushConstants(cmd, renderer->compPipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(CSPerFrame), &data);
 
                     base = (u8*)base + sizeof(*entry);
                 } break;
@@ -747,7 +766,6 @@ void HZVKRenderOutput(RenderGroup* renderGroup)
             }
         }
 
-        vkUnmapMemory(renderer->device, renderer->vRamArena.base);
 
         // bind the descriptor set containing the draw image for the compute pipeline
         vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, renderer->compPipelineLayout, 0, 1, &renderer->compDescriptor, 0, nullptr);

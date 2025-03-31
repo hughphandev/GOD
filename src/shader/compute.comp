@@ -8,20 +8,58 @@ layout (local_size_x = 16, local_size_y = 16) in;
 
 //descriptor bindings for the pipeline
 layout(rgba16f,set = 0, binding = 0) uniform image2D image;
-layout(set = 0, binding = 1) readonly buffer CSPerFrame
+layout(push_constant) readonly uniform CSPerFrame
 {
-    vec4 voxelColor;
-    vec3 voxelNormal; float _rs;
-    vec3 voxelPos; float _rs1;
-    mat4 worldTransform;
-
-    // //TODO: move to perframe
     vec3 camPos; float _rs2;
     mat4 invView;
     float fovy;
     float aspect;
 } csPerFrame;
 
+#define MAX_STEPS 100
+#define MAX_GRID_SIZE 20
+
+layout(align = 16, set = 0, binding = 1) readonly buffer CSPerScene
+{
+    mat4 worldTransform;
+    ivec2 voxels[MAX_GRID_SIZE * MAX_GRID_SIZE * MAX_GRID_SIZE];
+} csPerScene;
+
+
+struct RayTraverseResult
+{
+    bool hit;
+    ivec2 voxel;
+};
+
+RayTraverseResult TraverseVoxelGridOptimized(vec3 rayOrigin, vec3 rayDirection, float maxDist) {
+    RayTraverseResult result = {false, ivec2(0, 0)};
+
+    ivec3 coord = ivec3(floor(rayOrigin));
+    
+    vec3 rayStep = sign(rayDirection);
+    vec3 tDelta = abs(1.0 / rayDirection);
+    
+    vec3 tMax = (sign(rayDirection) * (vec3(coord) - rayOrigin) + (sign(rayDirection) * 0.5) + 0.5) * tDelta;
+    
+    for (int i = 0; i < MAX_STEPS && length(rayOrigin - vec3(coord)) < maxDist; i++) { 
+        if (all(greaterThanEqual(coord, ivec3(0))) && all(lessThan(coord, ivec3(MAX_GRID_SIZE, MAX_GRID_SIZE, MAX_GRID_SIZE))))
+        {
+            ivec2 voxel = csPerScene.voxels[coord.x * MAX_GRID_SIZE * MAX_GRID_SIZE + coord.y * MAX_GRID_SIZE + coord.z];
+            if (voxel.x > 0)
+            {
+                result.hit = true;
+                result.voxel = voxel;
+                return result;
+            }
+        }
+
+        bvec3 comp = lessThan(tMax.xyz, min(tMax.yzx, tMax.zxy));
+        tMax += vec3(comp) * tDelta;
+        coord += ivec3(comp) * ivec3(rayStep);
+    }
+    return result;
+}
 
 void main() 
 {
@@ -33,8 +71,6 @@ void main()
 
     if(texelCoord.x < size.x && texelCoord.y < size.y)
     {
-        vec4 color = csPerFrame.voxelColor;
-
         float pX = (2*(float(texelCoord.x) / size.x) - 1) * csPerFrame.aspect * tan(fovy / 2);
         float pY = (1 - 2*(float(texelCoord.y) / size.y)) * tan(fovy / 2);
 
@@ -43,8 +79,7 @@ void main()
         vec3 rayDirection = normalize(rayTarget - rayOrigin);
         vec3 camPos = csPerFrame.camPos;
 
-        vec2 t = IntersectAABB(rayOrigin, rayDirection, csPerFrame.voxelPos - vec3(0.5), csPerFrame.voxelPos + vec3(0.5));
-
-        if(t.x < t.y) imageStore(image, texelCoord, csPerFrame.voxelColor);
+        RayTraverseResult rayTraverse =  TraverseVoxelGridOptimized(rayOrigin, rayDirection, 100.0);
+        if(rayTraverse.hit) imageStore(image, texelCoord, U32ToVec4(rayTraverse.voxel.y));
     }
 }

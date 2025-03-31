@@ -303,6 +303,7 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prevInstance, PSTR cmdLine, int
                 if (gameState->lockCursor) SetCursorPos((gameRect.left + gameRect.right) / 2, (gameRect.top + gameRect.bottom) / 2);
                 ShowCursor(gameState->showCursor);
 
+
                 // D3D11RenderOutput(renderGroup);
                 HZVKRenderOutput(renderGroup);
 

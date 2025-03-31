@@ -84,6 +84,31 @@ void MemSet(void* mem, int val, size_t size)
   memset(mem, val, size);
 }
 
+void RandomSeed(u32 seed)
+{
+  srand(seed);
+}
+
+u32 Random()
+{
+  return rand();
+}
+
+s32 Random(s32 min, s32 max)
+{
+  return rand() % (max - min) + min;
+}
+
+f32 Random01()
+{
+  return (float)rand() / RAND_MAX;
+}
+
+f32 Random(f32 min, f32 max)
+{
+  return min + (max - min) * Random01();
+}
+
 inline s32 StrToI(char* str, char** pStr)
 {
   int sign = 1;
