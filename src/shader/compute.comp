@@ -16,8 +16,7 @@ layout(push_constant) readonly uniform CSPerFrame
     float aspect;
 } csPerFrame;
 
-#define MAX_STEPS 100
-#define MAX_GRID_SIZE 20
+#define MAX_GRID_SIZE 100
 
 layout(align = 16, set = 0, binding = 1) readonly buffer CSPerScene
 {
@@ -36,13 +35,14 @@ RayTraverseResult TraverseVoxelGridOptimized(vec3 rayOrigin, vec3 rayDirection, 
     RayTraverseResult result = {false, ivec2(0, 0)};
 
     ivec3 coord = ivec3(floor(rayOrigin));
+    ivec3 prevCoord = coord - 1;
     
     vec3 rayStep = sign(rayDirection);
     vec3 tDelta = abs(1.0 / rayDirection);
     
     vec3 tMax = (sign(rayDirection) * (vec3(coord) - rayOrigin) + (sign(rayDirection) * 0.5) + 0.5) * tDelta;
     
-    for (int i = 0; i < MAX_STEPS && length(rayOrigin - vec3(coord)) < maxDist; i++) { 
+    while (length(rayOrigin - vec3(coord)) < maxDist) { 
         if (all(greaterThanEqual(coord, ivec3(0))) && all(lessThan(coord, ivec3(MAX_GRID_SIZE, MAX_GRID_SIZE, MAX_GRID_SIZE))))
         {
             ivec2 voxel = csPerScene.voxels[coord.x * MAX_GRID_SIZE * MAX_GRID_SIZE + coord.y * MAX_GRID_SIZE + coord.z];
@@ -56,7 +56,9 @@ RayTraverseResult TraverseVoxelGridOptimized(vec3 rayOrigin, vec3 rayDirection, 
 
         bvec3 comp = lessThan(tMax.xyz, min(tMax.yzx, tMax.zxy));
         tMax += vec3(comp) * tDelta;
-        coord += ivec3(comp) * ivec3(rayStep);
+        ivec3 nextCoord = coord + ivec3(comp) * ivec3(rayStep);
+        if(coord == nextCoord) return result;
+        coord = nextCoord;
     }
     return result;
 }

@@ -122,7 +122,7 @@ struct alignas(16) CSPerFrame
     f32 aspect;
 };
 
-#define MAX_GRID_SIZE 20
+#define MAX_GRID_SIZE 100
 struct alignas(16) CSPerScene
 {
     Mat4 worldTrans;
