@@ -236,7 +236,7 @@ static void Win32ProcessPendingMessage(GameState* gameState)
 int WINAPI WinMain(HINSTANCE instance, HINSTANCE prevInstance, PSTR cmdLine, int cmdShow)
 {
     GameMemory gameMemory;
-    size_t persistantArenaSize = MEGABYTES(64);
+    size_t persistantArenaSize = MEGABYTES(512);
     size_t transientArenaSize = MEGABYTES(64);
     size_t pushBufferSize = MEGABYTES(4);
     void* memory = VirtualAlloc(0, persistantArenaSize + transientArenaSize + pushBufferSize, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
@@ -285,6 +285,7 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prevInstance, PSTR cmdLine, int
             gameState->api.UpdateMesh = {}; //Win32UpdateMesh;
             gameState->api.UploadModel = {}; //Win32UploadModel;
             gameState->api.UploadTexture = {}; //Win32UploadTexture;
+            gameState->api.UpdateScene = HZVKUpdateScene;
             gameCode.InitGame(gameState, renderGroup, &gameMemory);
 
             bool timeIsGranular = timeBeginPeriod(1) == TIMERR_NOERROR;

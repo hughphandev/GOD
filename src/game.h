@@ -56,6 +56,7 @@ struct GameAPI
     UpdateMesh* UpdateMesh;
     UploadModel* UploadModel;
     UploadTexture* UploadTexture;
+    UpdateScene* UpdateScene;
 };
 
 enum class GameAsset
@@ -94,6 +95,8 @@ struct GameState
 
     Entity entities[1000];
     Entity* player;
+
+    CSPerScene scene;
 
     Asset assets[(int)GameAsset::TERMINATOR];
 

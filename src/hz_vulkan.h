@@ -274,6 +274,15 @@ VkDescriptorSetLayout HZVKDescriptorSetLayout(VkDevice device, VkDescriptorSetLa
     return descriptorLayout;
 }
 
+void HZVKUpdateScene(Renderer* renderer, CSPerScene* scene)
+{
+    CSPerScene* data;
+    vkMapMemory(renderer->device, renderer->vRamArena.base, 0, sizeof(renderer->vRamArena.size), NULL, (void**)&data);
+    *data = *scene;
+    vkUnmapMemory(renderer->device, renderer->vRamArena.base);
+}
+
+
 void HZVKInit(Renderer* renderer, HINSTANCE hinstance, HWND hwnd, const char* name, MemoryArena* arena)
 {
     VkApplicationInfo appInfo = {};
@@ -731,25 +740,25 @@ void HZVKRenderOutput(RenderGroup* renderGroup)
                 case RC_RenderCommandVoxel:
                 {
                     RenderCommandVoxel* entry = (RenderCommandVoxel*)base;
-                    static bool isInit = false;
-                    if (!isInit)
-                    {
-                        isInit = true;
-                        CSPerScene* data;
-                        vkMapMemory(renderer->device, renderer->vRamArena.base, 0, sizeof(renderer->vRamArena.size), NULL, (void**)&data);
+                    // static bool isInit = false;
+                    // if (!isInit)
+                    // {
+                    //     isInit = true;
+                    //     CSPerScene* data;
+                    //     vkMapMemory(renderer->device, renderer->vRamArena.base, 0, sizeof(renderer->vRamArena.size), NULL, (void**)&data);
 
-                        data->worldTrans = entry->transform;
+                    //     data->worldTrans = entry->transform;
 
-                        RandomSeed(0);
-                        for (int i = 0; i < ARRAY_COUNT(data->voxel); ++i)
-                        {
-                            data->voxel[i].subdivision = 0;
-                            data->voxel[i].dataType = VoxelDataType::Color;
-                            data->voxel[i].child = Random() < RAND_MAX / 10 ? 1 : 0;
-                            data->voxel[i].color = ToU32Color(Vec4{ Random01(), Random01(), Random01(), 1 });
-                        }
-                        vkUnmapMemory(renderer->device, renderer->vRamArena.base);
-                    }
+                    //     RandomSeed(0);
+                    //     for (int i = 0; i < ARRAY_COUNT(data->voxel); ++i)
+                    //     {
+                    //         data->voxel[i].subdivision = 0;
+                    //         data->voxel[i].dataType = VoxelDataType::Color;
+                    //         data->voxel[i].child = Random() < RAND_MAX / 10 ? 1 : 0;
+                    //         data->voxel[i].color = ToU32Color(Vec4{ Random01(), Random01(), Random01(), 1 });
+                    //     }
+                    //     vkUnmapMemory(renderer->device, renderer->vRamArena.base);
+                    // }
 
                     CSPerFrame data;
                     data.fovy = entry->camera->fovy;

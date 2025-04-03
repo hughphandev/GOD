@@ -71,6 +71,18 @@ HPI void Init(GameState* state, RenderGroup* renderGroup, GameMemory* gameMemory
     renderGroup->lightDirection = Normalize(Vec3{ -1, 0, 0 });
     renderGroup->diffuse = { 1, 1, 1, 1 };
 
+    state->scene.worldTrans = MAT4_IDENTITY;
+
+    RandomSeed(0);
+    for (int i = 0; i < ARRAY_COUNT(state->scene.voxel); ++i)
+    {
+        state->scene.voxel[i].subdivision = 0;
+        state->scene.voxel[i].dataType = VoxelDataType::Color;
+        state->scene.voxel[i].child = Random() < RAND_MAX / 10 ? 1 : 0;
+        state->scene.voxel[i].color = ToU32Color(Vec4{ Random01(), Random01(), Random01(), 1 });
+    }
+    state->api.UpdateScene(renderGroup->renderer, &state->scene);
+
     // for (s32 x = 0; x < 3; ++x)
     // {
     //     for (s32 z = 0; z < 3; ++z)

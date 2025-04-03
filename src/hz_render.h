@@ -264,5 +264,6 @@ void PushRenderVoxel(RenderGroup* renderGroup, VoxelData voxel, Mat4 trans, Came
 typedef void UpdateMesh(Renderer* renderContext, u32 modelId, u32 meshId, LoadedMesh mesh);
 typedef u32 UploadModel(Renderer* renderContext, LoadedModel initialModel, MemoryArena* arena);
 typedef u32 UploadTexture(Renderer* renderContext, Texture texture, MemoryArena* arena);
+typedef void UpdateScene(Renderer* renderContext, CSPerScene* scene);
 
 #endif
